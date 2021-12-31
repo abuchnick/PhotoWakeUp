@@ -1,3 +1,4 @@
+# %%
 from torchvision.models.detection import maskrcnn_resnet50_fpn, keypointrcnn_resnet50_fpn
 import torch
 import torchvision.datasets as dset
@@ -19,6 +20,8 @@ def get_image_as_tensor(path):
 
 def detect_person(path, confidence_threshold=0.8):
     image_tensor = get_image_as_tensor(path)
+    if image_tensor.shape[1] == 4:
+        image_tensor = image_tensor[:, 0:3, :, :]
     model = maskrcnn_resnet50_fpn(pretrained=True)
     model.eval()
     with torch.no_grad():
@@ -29,13 +32,16 @@ def detect_person(path, confidence_threshold=0.8):
         for i in range(num_of_detections)
         if predictions['labels'][i] == 1 and predictions['scores'][i] > confidence_threshold
     ]
-    areas = map(lambda person: (person['box'][2] - person['box'][0]) * (person['box'][3] - person['box'][0]), persons)
+    areas = map(lambda person: (
+        person['box'][2] - person['box'][0]) * (person['box'][3] - person['box'][0]), persons)
     return persons[np.argmax(areas)]
 
 
 # TODO: make sure that the joints detection and the segmentation detect the same person
 def detect_joints(path):
     image_tensor = get_image_as_tensor(path)
+    if image_tensor.shape[1] == 4:
+        image_tensor = image_tensor[:, 0:3, :, :]
     model = keypointrcnn_resnet50_fpn(pretrained=True)
     model.eval()
     with torch.no_grad():
@@ -46,10 +52,19 @@ def detect_joints(path):
     }
 
 
-image = get_image_as_tensor('./images/lebron-james-run.jpg').squeeze().detach().numpy().transpose(1,2,0)
+image = get_image_as_tensor(
+    './images/LeBron_James.png').squeeze().detach().numpy().transpose(1, 2, 0)
+
 fig, ax = plt.subplots()
 ax.imshow(image)
-joints = detect_joints('./images/lebron-james-run.jpg')
+mask = detect_person('./images/LeBron_James.png')['mask']
+ax.imshow(mask.detach().numpy().transpose(1, 2, 0), cmap='jet', alpha=0.5)
+plt.show()
+
+
+fig, ax = plt.subplots()
+ax.imshow(image)
+joints = detect_joints('./images/LeBron_James.png')
 keypoints = joints['keypoints']
 keypoints_score = joints['keypoints_score']
 for (x, y, is_visible), kp_score in zip(keypoints, keypoints_score):
