@@ -3,7 +3,7 @@ import numpy as np
 import pydensecrf.densecrf as dcrf
 from pydensecrf.utils import unary_from_labels, create_pairwise_bilateral, create_pairwise_gaussian
 from cv2 import imread, imwrite
-
+import os
 
 
 def densecrf(picture, mask, output = None):
@@ -115,3 +115,11 @@ def densecrf(picture, mask, output = None):
     # for i in range(5):
     #     print("KL-divergence at {}: {}".format(i, d.klDivergence(Q)))
     #     d.stepInference(Q, tmp1, tmp2)
+    
+if __name__ == '__main__':
+    cwd = os.getcwd()
+    pic_path = os.path.join(cwd, 'images', 'LeBron_James.png')
+    mask_path = os.path.join(cwd, 'itzik0.jpg')
+    out_path = os.path.join(cwd, 'res.png')
+    densecrf(pic_path, mask_path, out_path)
+    print("done")
