@@ -61,9 +61,9 @@ def get_person_mask(path, confidence_threshold=0.4):
     areas = list(map(lambda person: (
         torch.abs(person['box'][2] - person['box'][0])) * (torch.abs(person['box'][3] - person['box'][1])), persons))
     largest_person_mask = persons[np.argmax(areas)]['mask']
-    save((largest_person_mask > 0.2).float(), "largest")
+    save((largest_person_mask > 0.5).float(), "largest")
 
 
-get_person_mask('./images/LeBron_James.png')
+get_person_mask('./images/steph.png')
 
 
