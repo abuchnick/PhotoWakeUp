@@ -69,7 +69,7 @@ class Mask:
         refiner = refine.Refiner(device=self.device, model_folder=self.refine_model)  # device can also be 'cpu'
         self.mask = refiner.refine(image_np, mask_np, fast=False, L=900)
         print("***Finished refining***")
-        cv2.imwrite('refine_mask.png', self.save_path)
+        self.save_img(self.mask, "refine_mask")
 
     def create_mask(self):
         self.get_person_mask()
