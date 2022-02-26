@@ -128,3 +128,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 .idea/
+smplx_debug/
+data/
+lib/openpose/
