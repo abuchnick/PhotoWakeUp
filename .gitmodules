@@ -4,3 +4,6 @@
 [submodule "lib/torch-mesh-isect"]
 	path = lib/torch-mesh-isect
 	url = https://github.com/vchoutas/torch-mesh-isect
+[submodule "lib/openpose"]
+	path = lib/openpose
+	url = https://github.com/CMU-Perceptual-Computing-Lab/openpose

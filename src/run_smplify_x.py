@@ -9,6 +9,8 @@ import torch
 
 import smplx
 
+import import_smplifyx as smplifyx
+
 from smplifyx.utils import JointMapper
 from smplifyx.data_parser import create_dataset
 from smplifyx.fit_single_frame import fit_single_frame
@@ -16,7 +18,65 @@ from smplifyx.fit_single_frame import fit_single_frame
 from smplifyx.camera import create_camera
 from smplifyx.prior import create_prior
 
+from human_body_prior.tools.model_loader import load_vposer
+
+import pickle
+
 torch.backends.cudnn.enabled = False
+
+with open(r".\smplx_conf.yaml", "r") as file:
+    CONF = yaml.load(file, Loader=yaml.FullLoader)
+
+if CONF['use_cuda'] and torch.cuda.is_available():
+    DEVICE = torch.device('cuda')
+else:
+    DEVICE = torch.device('cpu')
+
+
+def get_mesh_from_params(model=None, params=None, params_file=None):
+    float_dtype = CONF['float_dtype']
+    if float_dtype == 'float64':
+        dtype = torch.float64
+    elif float_dtype == 'float32':
+        dtype = torch.float64
+    else:
+        print('Unknown float type {}, exiting!'.format(float_dtype))
+        sys.exit(-1)
+
+    if model is None:
+        dataset_obj = create_dataset(**CONF)
+        joint_mapper = JointMapper(dataset_obj.get_model2data())
+        model_params = dict(model_path=CONF['model_folder'],
+                            joint_mapper=joint_mapper,
+                            create_global_orient=True,
+                            create_body_pose=not CONF['use_vposer'],
+                            create_betas=True,
+                            create_left_hand_pose=True,
+                            create_right_hand_pose=True,
+                            create_expression=True,
+                            create_jaw_pose=True,
+                            create_leye_pose=True,
+                            create_reye_pose=True,
+                            create_transl=False,
+                            dtype=dtype,
+                            **CONF)
+        model = smplx.create(**model_params)
+    model = model.to(DEVICE)
+
+    if params is None:
+        with open(params_file, "rb") as file:
+            params = pickle.load(file)
+    body_pose = torch.tensor(params['body_pose'])
+    if CONF['use_vposer']:
+        vposer, _ = load_vposer(CONF['vposer_ckpt'], vp_model='snapshot')
+        vposer = vposer.to(device=DEVICE)
+        body_pose = vposer.decode(
+            body_pose,
+            output_type='aa').view(1, -1)
+    model_output = model(return_verts=True, body_pose=body_pose)
+    vertices = model_output.vertices.detach().cpu().numpy().squeeze()
+    faces = model.faces
+    return dict(vertices=vertices, faces=faces)
 
 
 def main(**args):
@@ -176,8 +236,9 @@ def main(**args):
     # Add a fake batch dimension for broadcasting
     joint_weights.unsqueeze_(dim=0)
 
-    for idx, data in enumerate(dataset_obj):
+    result = {}
 
+    for idx, data in enumerate(dataset_obj):
         img = data['img']
         fn = data['fn']
         keypoints = data['keypoints']
@@ -189,6 +250,9 @@ def main(**args):
         curr_mesh_folder = osp.join(mesh_folder, fn)
         if not osp.exists(curr_mesh_folder):
             os.makedirs(curr_mesh_folder)
+
+        curr_result = result[fn] = {}
+
         for person_id in range(keypoints.shape[0]):
             if person_id >= max_persons and max_persons > 0:
                 continue
@@ -238,14 +302,20 @@ def main(**args):
                              jaw_prior=jaw_prior,
                              angle_prior=angle_prior,
                              **args)
+            with open(curr_result_fn, 'rb') as file:
+                curr_result[idx] = dict(
+                    model=body_model, params=pickle.load(file))
 
     elapsed = time.time() - start
     time_msg = time.strftime('%H hours, %M minutes, %S seconds',
                              time.gmtime(elapsed))
     print('Processing the data took: {}'.format(time_msg))
+    return result
 
 
 if __name__ == "__main__":
-    with open(r".\smplx_conf.yaml", "r") as file:
-        args = yaml.load(file, Loader=yaml.FullLoader)
-    main(**args)
+    result = main(**CONF)
+    # **(next(iter(result.values()))[0]))
+    # mesh = get_mesh_from_params(
+    #     params_file=r"C:\Users\yuval\Documents\C_HW\project\AVR\AVR-Project\smplx_result\results\LeBron_James\000.pkl")
+    # print(mesh)
