@@ -1,0 +1,6 @@
+[submodule "lib/smplify-x"]
+	path = lib/smplify-x
+	url = https://github.com/vchoutas/smplify-x.git
+[submodule "lib/torch-mesh-isect"]
+	path = lib/torch-mesh-isect
+	url = https://github.com/vchoutas/torch-mesh-isect
