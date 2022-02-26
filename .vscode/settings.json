@@ -1,0 +1,6 @@
+{
+    "python.analysis.extraPaths": [
+        "./lib/smplify-x",
+        "./lib/smplify-x/smplifyx"
+    ]
+}

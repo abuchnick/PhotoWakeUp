@@ -129,7 +129,14 @@ dmypy.json
 .pyre/
 
 .idea/
+
+
+models/
 smplx_debug/
 smplx_result/
 data/
 lib/openpose/
+<<<<<<< HEAD
+.vscode
+=======
+>>>>>>> 429d0682ab04074ec4f3af6f8831ad5669834deb
