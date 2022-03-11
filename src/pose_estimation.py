@@ -3,7 +3,7 @@ import os
 import sys
 import cv2
 
-OPENPOSE_DIR_PATH = os.path.realpath("./lib/openpose")
+OPENPOSE_DIR_PATH = os.path.abspath("./lib/openpose")
 CWD = os.getcwd()
 try:
     try:
@@ -19,7 +19,7 @@ try:
         print("Couldn't load the OpenPose library")
         raise
 
-    image_path = "../../data/images/man.jpg"
+    image_path = "../../data/images/steph.png"
 
     # %%
 
