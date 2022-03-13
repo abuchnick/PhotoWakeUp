@@ -32,6 +32,7 @@ if CONF['use_cuda'] and torch.cuda.is_available():
 else:
     DEVICE = torch.device('cpu')
 
+print(f"device = {DEVICE}")
 
 def get_mesh_from_params(model=None, params=None, params_file=None):
     float_dtype = CONF['float_dtype']
@@ -210,28 +211,23 @@ def main(**args):
 
     angle_prior = create_prior(prior_type='angle', dtype=dtype)
 
-    if use_cuda and torch.cuda.is_available():
-        device = torch.device('cuda')
-
-        camera = camera.to(device=device)
-        female_model = female_model.to(device=device)
-        male_model = male_model.to(device=device)
-        if args.get('model_type') != 'smplh':
-            neutral_model = neutral_model.to(device=device)
-        body_pose_prior = body_pose_prior.to(device=device)
-        angle_prior = angle_prior.to(device=device)
-        shape_prior = shape_prior.to(device=device)
-        if use_face:
-            expr_prior = expr_prior.to(device=device)
-            jaw_prior = jaw_prior.to(device=device)
-        if use_hands:
-            left_hand_prior = left_hand_prior.to(device=device)
-            right_hand_prior = right_hand_prior.to(device=device)
-    else:
-        device = torch.device('cpu')
+    camera = camera.to(device=DEVICE)
+    female_model = female_model.to(device=DEVICE)
+    male_model = male_model.to(device=DEVICE)
+    if args.get('model_type') != 'smplh':
+        neutral_model = neutral_model.to(device=DEVICE)
+    body_pose_prior = body_pose_prior.to(device=DEVICE)
+    angle_prior = angle_prior.to(device=DEVICE)
+    shape_prior = shape_prior.to(device=DEVICE)
+    if use_face:
+        expr_prior = expr_prior.to(device=DEVICE)
+        jaw_prior = jaw_prior.to(device=DEVICE)
+    if use_hands:
+        left_hand_prior = left_hand_prior.to(device=DEVICE)
+        right_hand_prior = right_hand_prior.to(device=DEVICE)
 
     # A weight for every joint of the model
-    joint_weights = dataset_obj.get_joint_weights().to(device=device,
+    joint_weights = dataset_obj.get_joint_weights().to(device=DEVICE,
                                                        dtype=dtype)
     # Add a fake batch dimension for broadcasting
     joint_weights.unsqueeze_(dim=0)

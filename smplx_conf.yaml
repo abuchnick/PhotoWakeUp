@@ -79,8 +79,8 @@ init_joints_idxs:
 - 12
 - 2
 - 5
-interactive: true
-interpenetration: false
+interactive: false
+interpenetration: true
 jaw_pose_prior_weights:
 - 4.04e03,4.04e04,4.04e04
 - 4.04e03,4.04e04,4.04e04
@@ -123,14 +123,14 @@ shape_weights:
 - 5.0
 side_view_thsh: 25
 summary_folder: summaries
-use_cuda: false
+use_cuda: true
 use_face: true
 use_face_contour: false
 use_hands: true
 use_joints_conf: true
 use_pca: true
 use_vposer: true
-visualize: true
+visualize: false
 vposer_ckpt: .\data\vposer_v1_0\
 output_folder: 'smplx_result'
 left_hand_prior_type: l2
