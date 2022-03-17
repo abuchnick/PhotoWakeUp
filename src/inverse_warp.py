@@ -31,8 +31,8 @@ def argmin_sub_array(arr, start, end):
 def get_contours(mask_img_path):
     img = cv.imread(mask_img_path)
     gray_img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)  # to use cv.threshold the img must be a grayscale img
-    threshold_used, thresholded_image = cv.threshold(gray_img, 100, 255, cv.THRESH_BINARY)  # each value below 100 will become 0, and above will become 255
-    contours, hierarchy = cv.findContours(thresholded_image, cv.RETR_TREE, cv.CHAIN_APPROX_NONE)  # retrieve all points in contour(don't approximate) and save full hirarchy
+    _, thresholded_image = cv.threshold(gray_img, 100, 255, cv.THRESH_BINARY)  # each value below 100 will become 0, and above will become 255
+    contours, _ = cv.findContours(thresholded_image, cv.RETR_TREE, cv.CHAIN_APPROX_NONE)  # retrieve all points in contour(don't approximate) and save full hirarchy
     contours = np.array(contours[0]).squeeze(1)  # this will take the contours of the first object only. cast for nd-array since the output is a list, and squeeze dim 1 since its redundant
     return contours
     # TODO for now both threshold_used and hierarchy vars aren't used.
@@ -95,10 +95,11 @@ def mean_value_coordinates(org_contours_pixels, inner_pixel):  # , org_contours_
     # shifted_norm = np.linalg.norm(coord_diffs_shifted, ord=2, axis=1)
     shifted_norm = np.roll(norm, shift=-1, axis=0)
     coord_diffs_shifted[:, 1] *= -1
-    sin = np.abs((coord_diffs * coord_diffs_shifted).sum(axis=1)) / (norm * shifted_norm)
-    tan = sin / (1 + np.sqrt(1 - sin ** 2))
-    tan_shifted = np.roll(tan, shift=1)
-    mvc = (tan + tan_shifted) / norm
+    sin_a = (coord_diffs * coord_diffs_shifted).sum(axis=1) / (norm * shifted_norm)
+    cos_a = ((coord_diffs ** 2) + (coord_diffs_shifted ** 2) - (coord_diffs-coord_diffs_shifted) ** 2 ) / (2 * coord_diffs * coord_diffs_shifted)
+    tan_half_a = sin_a / (1 + cos_a)
+    tan_shifted = np.roll(tan_half_a, shift=1)
+    mvc = (tan_half_a + tan_shifted) / norm
     return mvc / mvc.sum()
 
 
