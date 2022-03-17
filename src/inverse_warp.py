@@ -2,6 +2,7 @@ import numpy as np
 import cv2 as cv
 from os import getcwd
 from os.path import join
+import matplotlib.pyplot as plt
 
 IMAGES_DIR = join(getcwd(), "..", "images")
 PATH_TO_ORG_MASK = join(IMAGES_DIR, "org_mask (Custom).jpeg")
@@ -96,7 +97,7 @@ def mean_value_coordinates(org_contours_pixels, inner_pixel):  # , org_contours_
     shifted_norm = np.roll(norm, shift=-1, axis=0)
     coord_diffs_shifted[:, 1] *= -1
     sin_a = (coord_diffs * coord_diffs_shifted).sum(axis=1) / (norm * shifted_norm)
-    cos_a = ((coord_diffs ** 2) + (coord_diffs_shifted ** 2) - (coord_diffs-coord_diffs_shifted) ** 2 ) / (2 * coord_diffs * coord_diffs_shifted)
+    cos_a = ((norm ** 2) + (shifted_norm ** 2) - (norm-shifted_norm) ** 2) / (2 * norm * shifted_norm)
     tan_half_a = sin_a / (1 + cos_a)
     tan_shifted = np.roll(tan_half_a, shift=1)
     mvc = (tan_half_a + tan_shifted) / norm
