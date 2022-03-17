@@ -137,7 +137,7 @@ if __name__ == '__main__':
     img = cv.imread(PATH_TO_NORMALS_MAP)
     img2 = np.zeros_like(img)
     for r in res:
-        img2[r[0][0], r[0][1], :] = img[r[1][0], r[1][1], :]
+        img2[r[0][1], r[0][0], :] = img[r[1][1], r[1][0], :]
     cv.imshow("ahlan itzko", img2)
     cv.waitKey(0)
     print(1)
