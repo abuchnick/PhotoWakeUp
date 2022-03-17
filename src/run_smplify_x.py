@@ -8,6 +8,7 @@ import time
 from typing import Optional
 import yaml
 import torch
+import numpy as np
 
 import smplx
 
@@ -41,7 +42,7 @@ class SmplifyX:
         if float_dtype == 'float64':
             self.dtype = torch.float64
         elif float_dtype == 'float32':
-            self.dtype = torch.float64
+            self.dtype = torch.float32
         else:
             raise Exception(
                 'Unknown float type {}, exiting!'.format(float_dtype))
@@ -245,7 +246,12 @@ class SmplifyX:
                     model=body_model,
                     params=params,
                     mesh=self.get_mesh_from_params(
-                        model=body_model, params=params)
+                        model=body_model, params=params),
+                    camera=dict(
+                        focal_length=focal_length,
+                        **{k: v.detach().cpu().numpy().squeeze() for k, v in camera.named_parameters()},
+                        **{k: v.detach().cpu().numpy().squeeze() for k, v in camera.named_buffers()}
+                    )
                 )
 
         elapsed = time.time() - start
@@ -255,12 +261,17 @@ class SmplifyX:
         return batch_result
 
     def get_mesh_from_params(self, model=None, params=None, params_file=None):
+        if params is None:
+            with open(params_file, "rb") as file:
+                params = pickle.load(file)
+
         if model is None:
             dataset_obj = create_dataset(**self.configuration)
             joint_mapper = JointMapper(dataset_obj.get_model2data())
             model_params = dict(model_path=self.configuration['model_folder'],
                                 joint_mapper=joint_mapper,
                                 create_global_orient=True,
+                                global_orient=params['global_orient'],
                                 create_body_pose=not self.configuration['use_vposer'],
                                 create_betas=True,
                                 create_left_hand_pose=True,
@@ -275,9 +286,6 @@ class SmplifyX:
             model = smplx.create(**model_params)
         model = model.to(self.device)
 
-        if params is None:
-            with open(params_file, "rb") as file:
-                params = pickle.load(file)
         body_pose = torch.tensor(params['body_pose'])
         if self.configuration['use_vposer']:
             vposer, _ = load_vposer(
@@ -288,6 +296,8 @@ class SmplifyX:
                 output_type='aa').view(1, -1)
         model_output = model(return_verts=True, body_pose=body_pose)
         vertices = model_output.vertices.detach().cpu().numpy().squeeze()
+        # convert to OpenGL compatible axis
+        vertices = vertices  @ np.diag([1, -1, -1])
         faces = model.faces
         skinning_map = model.lbs_weights
         return dict(vertices=vertices, faces=faces, skinning_map=skinning_map)
@@ -296,3 +306,5 @@ class SmplifyX:
 if __name__ == "__main__":
     smplifyx_object = SmplifyX()
     result = smplifyx_object()
+    with open('result.pkl', 'wb') as file:
+        pickle.dump(result, file)
