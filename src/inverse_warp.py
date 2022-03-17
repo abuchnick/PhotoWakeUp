@@ -47,7 +47,7 @@ def find_inner_pixels(mask_img_path, contour_points):
         for j in range(w):
             if cv.pointPolygonTest(contour_points, (i, j), False) == 1:
                 inner_pixels.append([i, j])
-                print(f"Debug: Contour Pixel in Height: {i} Width: {j}")
+                # print(f"Debug: Contour Pixel in Height: {i} Width: {j}")
     return np.array(inner_pixels)
 
 
@@ -70,27 +70,30 @@ def boundary_match(org_contours, smpl_contours, k=32):
 
             dp_mat_val[i, j] = min_val + np.linalg.norm(org_contours[i] - smpl_contours[j])
             dp_mat_pred[i, j] = index
-        print(f"Debug: Iteration {i}/{m}")
+        if i % 100 == 0:
+            print(f"Debug: Iteration {i}/{m}")
 
     ind = np.argmin(dp_mat_val[m-1, :])
     correspondence_map = np.zeros(m, dtype=np.int32)
     correspondence_map[m-1] = ind
-    print(f"Debug: Mapping {m-1} -> {ind}")
+    # print(f"Debug: Mapping {m-1} -> {ind}")
 
     for i in reversed(range(m-1)):
         pred = int(dp_mat_pred[i, ind])
         correspondence_map[i] = pred
-        print(f"Debug: Mapping {i} -> {pred}")
+        # print(f"Debug: Mapping {i} -> {pred}")
         ind = pred
 
     return correspondence_map
 
 
-def mean_value_coordinates(org_contours_pixels, inner_pixel, org_contours_pixels_shifted):
+def mean_value_coordinates(org_contours_pixels, inner_pixel):  # , org_contours_pixels_shifted):
     coord_diffs = org_contours_pixels - inner_pixel
-    coord_diffs_shifted = org_contours_pixels_shifted - inner_pixel
+    # coord_diffs_shifted = org_contours_pixels_shifted - inner_pixel
+    coord_diffs_shifted = np.roll(coord_diffs, shift=(1, -1), axis=(1, 0))
     norm = np.linalg.norm(coord_diffs, ord=2, axis=1)
-    shifted_norm = np.linalg.norm(coord_diffs_shifted, ord=2, axis=1)
+    # shifted_norm = np.linalg.norm(coord_diffs_shifted, ord=2, axis=1)
+    shifted_norm = np.roll(norm, shift=-1, axis=0)
     coord_diffs_shifted[:, 1] *= -1
     sin = np.abs((coord_diffs * coord_diffs_shifted).sum(axis=1)) / (norm * shifted_norm)
     tan = sin / (1 + np.sqrt(1 - sin ** 2))
@@ -104,14 +107,15 @@ def inverse_warp():
     org_inner_pixels = find_inner_pixels(PATH_TO_ORG_MASK, org_contours)
     smpl_contours = get_contours(PATH_TO_SMPL_MASK)  # shape == (n, 2)
     correspondence = boundary_match(org_contours, smpl_contours)  # shape == (m, )
-    org_contours_pixels_shifted = np.roll(org_contours, shift=(1, -1), axis=(1, 0))  # this moves cyclically the two cols of coord_diffs upside-down and switches between the order of two cols
+    # org_contours_pixels_shifted = np.roll(org_contours, shift=(1, -1), axis=(1, 0))  # this moves cyclically the two cols of coord_diffs upside-down and switches between the order of two cols
     result = []
     for inner_pixel in org_inner_pixels:
-        mvc = mean_value_coordinates(org_contours, inner_pixel, org_contours_pixels_shifted)  # shape == (m, )
+        mvc = mean_value_coordinates(org_contours, inner_pixel)  # , org_contours_pixels_shifted)  # shape == (m, )
         transformed_pixels = np.expand_dims(mvc, axis=1) * np.take(a=smpl_contours, indices=correspondence, axis=0)  # shape == (m, 2)
         mapped_pixel = transformed_pixels.sum(axis=0)  # shape == (2, )
         result.append([inner_pixel, mapped_pixel.astype(int)])
     return result
+
 
 if __name__ == '__main__':
     # TEST BOUNDARY MATCHING
@@ -137,4 +141,3 @@ if __name__ == '__main__':
     cv.imshow("ahlan itzko", img2)
     cv.waitKey(0)
     print(1)
-
