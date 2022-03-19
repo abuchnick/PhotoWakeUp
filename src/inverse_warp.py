@@ -41,10 +41,10 @@ def get_contours(mask_img_path):
 def find_inner_pixels(mask_img_path, contour_points):
     img = cv.imread(mask_img_path)
     inner_pixels = []
-    w, h, _ = img.shape
+    h, w, _ = img.shape
 
-    for i in range(h):
-        for j in range(w):
+    for i in range(w):
+        for j in range(h):
             if cv.pointPolygonTest(contour_points, (i, j), False) == 1:
                 inner_pixels.append([i, j])
     return np.array(inner_pixels)
