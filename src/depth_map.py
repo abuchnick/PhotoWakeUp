@@ -1,5 +1,6 @@
 import numpy as np
 import cv2 as cv
+import time
 
 
 class DepthMap:
@@ -13,13 +14,6 @@ class DepthMap:
         self.filled_pts = []
         self.depth_map_filled = None
 
-    def isvalidpix(self, image, x, y):
-        if (image[y, x] == [0, 0, 0]).all() == True:
-            return 'not inner point'
-        elif (image[y, x] == [255, 255, 255]).all() == True:
-            return 'inner point not filled'
-        else:
-            return 'inner point filled'
 
     def classifyPoints(self):
         gray_img = cv.cvtColor(self.mask, cv.COLOR_BGR2GRAY)  # to use cv.threshold the img must be a grayscale img
@@ -37,24 +31,6 @@ class DepthMap:
                 elif cv.pointPolygonTest(contours, (j, i), False) == 0:
                     self.boundery_pts.append([i, j])
 
-    def valid_neighbor(self, image, x, y):
-
-        x_valid, y_valid = 0, 0
-
-        if self.isvalidpix(image, x - 1, y) == 1:
-            x_valid = x_valid + 1
-
-        if self.isvalidpix(image, x + 1, y) == 1:
-            x_valid = x_valid + 1
-
-        if self.isvalidpix(image, x, y - 1) == 1:
-            y_valid = y_valid + 1
-
-        if self.isvalidpix(image, x, y + 1) == 1:
-            y_valid = y_valid + 1
-
-        return x_valid, y_valid
-
 
     def normal_decode(self, image, x, y):
 
@@ -66,7 +42,7 @@ class DepthMap:
 
     def solve_depth(self, x, y):
 
-         n_x, n_y, n_z = self.normal_decode(self.normal_map, x, y)
+        n_x, n_y, n_z = self.normal_decode(self.normal_map, x, y)
 
         if (x-1, y) in self.filled_pts:
             b1 = self.depth_map_coarse[x-1, y, 0]  # the three channels are the same
@@ -97,63 +73,62 @@ class DepthMap:
         self.classifyPoints()
 
         for i in range(len(self.boundery_pts)):
-            h = self.boundery_pts[i][0]
-            w = self.boundery_pts[i][1]
-            self.filled_pts.append((h, w))
+            x = self.boundery_pts[i][0]
+            y = self.boundery_pts[i][1]
+            self.filled_pts.append((x, y))
             for j in range(0, 3):
-                self.depth_map_filled[h, w, j] = self.depth_map_coarse[h, w, j]
+                self.depth_map_filled[x, y, j] = self.depth_map_coarse[x, y, j]
 
         #cv.imshow('depth map', self.depth_map_filled)
         #cv.waitKey(0)
         #cv.destroyAllWindows()
 
-        iter_num = 100
+        max_itr = 100
 
         height = self.depth_map_coarse.shape[0]
         width = self.depth_map_coarse.shape[1]
 
-        for iter_ in range(iter_num):
+        for i in range(max_itr):
             add_count = 0
-            down = set([((i[0] + 1), i[1]) for i in self.filled_pts]) - set(self.filled_pts)
-            up = set([((i[0] - 1), i[1]) for i in self.filled_pts]) - set(self.filled_pts)
-            right = set([(i[0], (i[1] - 1)) for i in self.filled_pts]) - set(self.filled_pts)
-            left = set([(i[0], (i[1] + 1)) for i in self.filled_pts]) - set(self.filled_pts)
-            inner = set([(i[0], (i[1])) for i in self.inner_pts])
 
-            a = up.intersection(left)
-            b = up.intersection(right)
-            c = a.union(b)
+            #fine new points
+            down_pt = set([((i[0] + 1), i[1]) for i in self.filled_pts if (i[0] + 1) < height]) - set(self.filled_pts)
+            up_pt = set([((i[0] - 1), i[1]) for i in self.filled_ptsif (i[0] - 1) > -1]) - set(self.filled_pts)
+            right_pt = set([(i[0], (i[1] - 1)) for i in self.filled_pts if (i[1] + 1) < width]) - set(self.filled_pts)
+            left_pt = set([(i[0], (i[1] + 1)) for i in self.filled_pts if (i[1] - 1) > -1]) - set(self.filled_pts)
+            inner_pt = set([(i[0], (i[1])) for i in self.inner_pts])
 
-            d = down.intersection(left)
-            e = down.intersection(right)
-            f = d.union(e)
+            up_left = up_pt.intersection(left_pt)
+            up_right = up_pt.intersection(right_pt)
+            up = up_left.union(up_right)
 
-            g = f.union(c)
+            down_left = down_pt.intersection(left_pt)
+            down_right = down_pt.intersection(right_pt)
+            down = down_left.union(down_right)
 
-            final = list(g.intersection(inner))
+            new_pt = up.union(down)
 
+            new_pt = list(new_pt.intersection(inner_pt))
 
+            print(len(new_pt))
 
+            for i in range(len(new_pt)):
 
+                x = new_pt[i][0]
+                y = new_pt[i][1]
 
-            for i in range(len(final)):
-                h = final[i][0]
-                w = final[i][1]
+                if (((x, y + 1) in self.filled_pts) or ((x, y-1) in self.filled_pts)) and (((x+1, x) in self.filled_pts) or ((x-1, y) in self.filled_pts)):
+                    depth = self.solve_depth(x, y)
+                    self.filled_pts.append((x, y))
+                    add_count += 1
+                    for j in range(0, 3):
+                        self.depth_map_filled[x, y, j] = depth
 
-                if (h, w) not in self.filled_pts:
-                    if (((h, w + 1) in self.filled_pts) or ((h, w-1) in self.filled_pts)) and (((h+1, h) in self.filled_pts) or ((h-1, w) in self.filled_pts)):
-                        depth = self.solve_depth(h, w)
-                        self.filled_pts.append((h, w))
-                        add_count += 1
-                        for j in range(0, 3):
-                            self.depth_map_filled[h, w, j] = depth
-
-                    else:
-                        continue
                 else:
-                    print('bla')
+                    continue
 
-            print('%d/%d fill depth map, add %d' % (iter_, iter_num, add_count))
+
+            print('fill depth map, add %d' % ( add_count))
 
         cv.imshow('depth map', self.depth_map_filled)
         cv.waitKey(0)
