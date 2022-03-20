@@ -1,5 +1,5 @@
 import numpy as np
-import cv2 as cv
+import cv2
 from os import getcwd
 from os.path import join
 import matplotlib.pyplot as plt
@@ -8,6 +8,7 @@ IMAGES_DIR = join(getcwd(), "..", "images")
 PATH_TO_ORG_MASK = join(IMAGES_DIR, "org_mask (Custom).jpeg")
 PATH_TO_SMPL_MASK = join(IMAGES_DIR, "smpl_mask (Custom).jpeg")
 PATH_TO_NORMALS_MAP = join(IMAGES_DIR, "normals_map (Custom).jpeg")
+PATH_TO_DEPTH_MAP = join(IMAGES_DIR, "depth_map.tiff")
 
 
 def argmin_sub_array(arr, start, end):
@@ -30,22 +31,22 @@ def argmin_sub_array(arr, start, end):
 
 
 def get_contours(mask_img_path):
-    img = cv.imread(mask_img_path)
-    gray_img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)  # to use cv.threshold the img must be a grayscale img
-    _, thresholded_image = cv.threshold(gray_img, 100, 255, cv.THRESH_BINARY)  # each value below 100 will become 0, and above will become 255
-    contours, _ = cv.findContours(thresholded_image, cv.RETR_TREE, cv.CHAIN_APPROX_NONE)  # retrieve all points in contour(don't approximate) and save full hirarchy
+    img = cv2.imread(mask_img_path)
+    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # to use cv2.threshold the img must be a grayscale img
+    _, thresholded_image = cv2.threshold(gray_img, 100, 255, cv2.THRESH_BINARY)  # each value below 100 will become 0, and above will become 255
+    contours, _ = cv2.findContours(thresholded_image, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)  # retrieve all points in contour(don't approximate) and save full hirarchy
     contours = np.array(contours[0]).squeeze(1)  # this will take the contours of the first object only. cast for nd-array since the output is a list, and squeeze dim 1 since its redundant
     return contours
 
 
 def find_inner_pixels(mask_img_path, contour_points):
-    img = cv.imread(mask_img_path)
+    img = cv2.imread(mask_img_path)
     inner_pixels = []
     h, w, _ = img.shape
 
     for i in range(w):
         for j in range(h):
-            if cv.pointPolygonTest(contour_points, (i, j), False) == 1:
+            if cv2.pointPolygonTest(contour_points, (i, j), False) == 1:
                 inner_pixels.append([i, j])
     return np.array(inner_pixels)
 
@@ -124,16 +125,20 @@ if __name__ == '__main__':
     #     img[org_contour[i][1], org_contour[i][0], 2] = smpl_contour[j][0] / 500
     #     img2[smpl_contour[j][1], smpl_contour[j][0], 0] = smpl_contour[j][1] / 326
     #     img2[smpl_contour[j][1], smpl_contour[j][0], 2] = smpl_contour[j][0] / 500
-    # cv.imshow("ahlan itzik", img)
-    # cv.imshow("ahlan itzik2", img2)
-    # cv.waitKey(0)
-    # cv.destroyAllWindows()
-    # TEST FULL INVERSE WARP
-    # res = inverse_warp()
-    # img = cv.imread(PATH_TO_NORMALS_MAP)
-    # img2 = np.zeros_like(img)
-    # for r in res:
-    #     img2[r[0][1], r[0][0], :] = img[r[1][1], r[1][0], :]
-    # cv.imshow("ahlan itzko", img2)
-    # cv.waitKey(0)
+    # cv2.imshow("ahlan itzik", img)
+    # cv2.imshow("ahlan itzik2", img2)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+    # NORMALS INVERSE WARP
+    f = inverse_warp()
+    normals_map = cv2.imread(PATH_TO_NORMALS_MAP)
+    normals_map_projected = np.zeros_like(normals_map)
+    depth_map = cv2.imread(PATH_TO_DEPTH_MAP, cv2.IMREAD_ANYDEPTH)
+    depth_map_projected = np.zeros_like(depth_map)
+    for corr in f:
+        normals_map_projected[corr[0][1], corr[0][0], :] = normals_map[corr[1][1], corr[1][0], :]
+        depth_map_projected[corr[0][1], corr[0][0], :] = depth_map[corr[1][1], corr[1][0], :]
+    cv2.imshow("ahlan normals", normals_map_projected)
+    cv2.imshow("ahlan depth", depth_map_projected)
+    cv2.waitKey(0)
     print(1)
