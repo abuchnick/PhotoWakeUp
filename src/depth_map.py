@@ -1,143 +1,91 @@
+from torchvision.models.detection import maskrcnn_resnet50_fpn
+from torchvision.models.segmentation import fcn_resnet50
+import torch
+import torchvision.datasets as dset
+from PIL import Image
+import matplotlib.pyplot as plt
 import numpy as np
-import cv2 as cv
+from torchvision.transforms import ToTensor
+import torchvision.transforms.functional as F
+import cv2
 import time
+import matplotlib.pyplot as plt
+import segmentation_refinement as refine
+import numpy as np
 
 
-class DepthMap:
+class Mask:
 
-    def __init__(self, mask, depth_map_coarse, normal_map):
-        self. depth_map_coarse = cv.imread(depth_map_coarse)
-        self.normal_map = cv.imread(normal_map)
-        self.mask = cv.imread(mask)
-        self.inner_pts = []
-        self.boundery_pts = []
-        self.filled_pts = []
-        self.depth_map_filled = None
+    def __init__(self, img_path, save_path, refine_model, detect_thresh=0.4, debug=True, device='cuda'):
+        self.img_path = img_path
+        self.save_path = save_path
+        self.detect_tresh = detect_thresh
+        self.debug = debug
+        self.device = device if torch.cuda.is_available() else 'cpu'
+        self.refine_model = refine_model
 
+        self.mask = None
+        self.img = None
 
-    def classifyPoints(self):
-        gray_img = cv.cvtColor(self.mask, cv.COLOR_BGR2GRAY)  # to use cv.threshold the img must be a grayscale img
-        threshold_used, thresholded_image = cv.threshold(gray_img, 100, 255,
-                                                         cv.THRESH_BINARY)  # each value below 100 will become 0, and above will become 255
-        contours, hierarchy = cv.findContours(thresholded_image, cv.RETR_TREE,
-                                              cv.CHAIN_APPROX_NONE)  # retrieve all points in contour(don't approximate) and save full hirarchy
-        contours = np.array(contours[0]).squeeze(
-            1)  # this will take the contours of the first object only. cast for nd-array since the output is a list, and squeeze dim 1 since its redundant
+    def img_to_tensor(self):
+        self.img = Image.open(self.img_path)
+        self.img.load()
+        return ToTensor()(self.img).unsqueeze(0)
 
-        for i in range(self.depth_map_coarse.shape[0]):
-            for j in range(self.depth_map_coarse.shape[1]):
-                if cv.pointPolygonTest(contours, (j, i), False) == 1:
-                    self.inner_pts.append([i, j])
-                elif cv.pointPolygonTest(contours, (j, i), False) == 0:
-                    self.boundery_pts.append([i, j])
+    def save_img(self, img, img_name):
+        img = img.detach()
+        img = F.to_pil_image(img)
+        img.save(f"{self.save_path}\{img_name}.png")
 
+    def get_person_mask(self):
+        print("***Creating mask***")
+        image_tensor = self.img_to_tensor()
+        if image_tensor.shape[1] == 4:
+            image_tensor = image_tensor[:, 0:3, :, :]
+        model = maskrcnn_resnet50_fpn(pretrained=True)
+        model.eval()
 
-    def normal_decode(self, image, x, y):
+        with torch.no_grad():
+            predictions = model(image_tensor)[0]
+        num_of_detections = len(predictions['labels'])
+        persons = [
+            {'mask': predictions['masks'][i], 'box': predictions['boxes'][i]}
+            for i in range(num_of_detections)
+            if predictions['labels'][i] == 1 and predictions['scores'][i] > self.detect_tresh
+        ]
+        areas = list(map(lambda person: (
+                                            torch.abs(person['box'][2] - person['box'][0])) * (
+                                            torch.abs(person['box'][3] - person['box'][1])), persons))
 
-        x_axis = image[x, y, 2] * 2 - 255  # channel order of opencv imread is BGR
-        y_axis = image[x, y, 1] * 2 - 255
-        z_axis = image[x, y, 0] * 2 - 255
+        self.mask = (persons[np.argmax(areas)]['mask'] > 0.5).float()
+        print("***finished creating mask***")
+        print("***Saving mask***")
+        self.save_img(self.mask, "mask")
 
-        return x_axis, y_axis, z_axis
+    def refine_mask(self):
+        print("***Start refining***")
+        image_np = cv2.imread(self.img_path)
+        mask_np = cv2.imread(f"{self.save_path}\mask.png", cv2.IMREAD_GRAYSCALE)
+        refiner = refine.Refiner(device=self.device, model_folder=self.refine_model)  # device can also be 'cpu'
+        self.mask = refiner.refine(image_np, mask_np, fast=False, L=900)
+        print("***Finished refining***")
+        cv2.imwrite(f"{self.save_path}\refine_mask", self.mask)
 
-    def solve_depth(self, x, y):
-
-        n_x, n_y, n_z = self.normal_decode(self.normal_map, x, y)
-
-        if (x-1, y) in self.filled_pts:
-            b1 = self.depth_map_coarse[x-1, y, 0]  # the three channels are the same
-        else:
-            b1 = self.depth_map_coarse[x + 1, y, 0]
-
-        if (x, y-1) in self.filled_pts:
-            b2 = self.depth_map_coarse[x, y - 1, 0]
-        else:
-            b2 = self.depth_map_coarse[x, y + 1, 0]
-
-        A = np.array([[n_z], [n_z]])
-        # print(np.array(A))
-        b1 = n_z * b1 - n_x
-        b2 = n_z * b2 - n_y
-        b = np.array([b1, b2])
-        # print(b)
-
-        depth = np.linalg.lstsq(A, b)
-        depth = int(depth[0])
-
-        return depth
-
-    def warp_depth_map(self):
-
-        self.depth_map_filled = np.zeros(self.depth_map_coarse.shape, dtype=np.uint8)
-
-        self.classifyPoints()
-
-        for i in range(len(self.boundery_pts)):
-            x = self.boundery_pts[i][0]
-            y = self.boundery_pts[i][1]
-            self.filled_pts.append((x, y))
-            for j in range(0, 3):
-                self.depth_map_filled[x, y, j] = self.depth_map_coarse[x, y, j]
-
-        #cv.imshow('depth map', self.depth_map_filled)
-        #cv.waitKey(0)
-        #cv.destroyAllWindows()
-
-        max_itr = 100
-
-        height = self.depth_map_coarse.shape[0]
-        width = self.depth_map_coarse.shape[1]
-
-        for i in range(max_itr):
-            add_count = 0
-
-            #fine new points
-            down_pt = set([((i[0] + 1), i[1]) for i in self.filled_pts if (i[0] + 1) < height]) - set(self.filled_pts)
-            up_pt = set([((i[0] - 1), i[1]) for i in self.filled_ptsif (i[0] - 1) > -1]) - set(self.filled_pts)
-            right_pt = set([(i[0], (i[1] - 1)) for i in self.filled_pts if (i[1] + 1) < width]) - set(self.filled_pts)
-            left_pt = set([(i[0], (i[1] + 1)) for i in self.filled_pts if (i[1] - 1) > -1]) - set(self.filled_pts)
-            inner_pt = set([(i[0], (i[1])) for i in self.inner_pts])
-
-            up_left = up_pt.intersection(left_pt)
-            up_right = up_pt.intersection(right_pt)
-            up = up_left.union(up_right)
-
-            down_left = down_pt.intersection(left_pt)
-            down_right = down_pt.intersection(right_pt)
-            down = down_left.union(down_right)
-
-            new_pt = up.union(down)
-
-            new_pt = list(new_pt.intersection(inner_pt))
-
-            print(len(new_pt))
-
-            for i in range(len(new_pt)):
-
-                x = new_pt[i][0]
-                y = new_pt[i][1]
-
-                if (((x, y + 1) in self.filled_pts) or ((x, y-1) in self.filled_pts)) and (((x+1, x) in self.filled_pts) or ((x-1, y) in self.filled_pts)):
-                    depth = self.solve_depth(x, y)
-                    self.filled_pts.append((x, y))
-                    add_count += 1
-                    for j in range(0, 3):
-                        self.depth_map_filled[x, y, j] = depth
-
-                else:
-                    continue
-
-
-            print('fill depth map, add %d' % ( add_count))
-
-        cv.imshow('depth map', self.depth_map_filled)
-        cv.waitKey(0)
-        cv.destroyAllWindows()
+    def create_mask(self):
+        self.get_person_mask()
+        self.refine_mask()
+        return self.mask
 
 
 if __name__ == "__main__":
-    depth_map = DepthMap(r'C:\Users\talha\Desktop\study\semester 7\inner.jpeg',
-                 r'C:\Users\talha\Desktop\study\semester 7\smpl_depth_map.jpeg',
-                 r'C:\Users\talha\Desktop\study\semester 7\normal.jpeg')
+    mask = Mask(
+        img_path=r"C:\Users\talha\Desktop\study\semester 7\steph.png",
+        save_path=r"C:\Users\talha\Desktop\study\semester 7",
+        refine_model= r"C:\Users\talha\Desktop\study\semester 7\פרויקט\AVR-Project\models"
+    )
+    mask.create_mask()
 
-    depth_map.warp_depth_map()
+
+
+
+
