@@ -1,5 +1,5 @@
 import numpy as np
-import scipy as sp
+import scipy.sparse as ssp
 import cv2
 import os
 
@@ -16,15 +16,16 @@ class DepthMap:
 
         self.inner_pts = []
         self.boundary_pts = []
-        self.filled_pts = []
-        self.depth_map_filled = np.zeros_like(depth_map_coarse)
+        self.outer_pts = []
+        # self.filled_pts = []
+        # self.depth_map_filled = np.zeros_like(depth_map_coarse)
         self.parameter_matrix = None
 
     def constructEquationsMatrix(self):
         def index_depth(x, y): return x*self.depth_map_coarse.shape[0] + y
         def index_normals(
             x, y, z): return x*(self.normals.shape[0]*self.normals.shape[1]) + y*self.normals.shape[1] + z
-        self.parameter_matrix = sp.sparse.coo_array(
+        self.parameter_matrix = ssp.lil_array(
             (self.normals.size, self.depth_map_coarse.size))
         for x, y in self.inner_pts:
             self.parameter_matrix[index_normals(
@@ -44,6 +45,9 @@ class DepthMap:
             self.parameter_matrix[index_normals(
                 x, y-1, 1), index_depth(x, y)] = self.normals[x, y-1, 2]
 
+        # for x, y in self.boundary_pts:
+        # set boundry conditions to the coarse depth map
+
     def classifyPoints(self):
         _, thresholded_image = cv2.threshold(self.mask, 100, 255,
                                              cv2.THRESH_BINARY)  # each value below 100 will become 0, and above will become 255
@@ -59,6 +63,7 @@ class DepthMap:
                 elif cv2.pointPolygonTest(contours, (i, j), False) == 0:
                     self.depth_map_filled[i, j] = self.depth_map_coarse[i, j]
                     self.boundary_pts.append([i, j])
+        self.normals[]
 
     # def solve_depth(self, x, y):
 
@@ -159,7 +164,7 @@ class DepthMap:
     def solve_depth(self):
         self.classifyPoints()
         self.constructEquationsMatrix()
-        depth = sp.linalg.lstsq(self.parameter_matrix, np.ravel(
+        depth = ssp.linalg.lstsq(self.parameter_matrix.tocsr(), np.ravel(
             self.normals), overwrite_a=True)[0]
         return depth.reshape(self.depth_map_coarse.shape)
 
