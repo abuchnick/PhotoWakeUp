@@ -86,7 +86,7 @@ class Renderer:
         if get_depth_map:
             depth_map = np.flip(np.frombuffer(
                 self.fbo.read(attachment=-1, dtype='f4'), dtype='f4').reshape(*self.img_shape), axis=0)
-            depth_map = np.where(depth_map == 1.0, float('inf'), depth_map)
+            # depth_map = np.where(depth_map == 1.0, float('inf'), depth_map)
             return render, depth_map
 
         return render
@@ -182,12 +182,14 @@ if __name__ == '__main__':
 
     dmin = np.min(depth)
     dmax = np.max(np.where(depth == np.max(depth), float('-inf'), depth))
+    depth = 1. - (depth - dmin) / (dmax-dmin)
 
-    cv2.imshow('render1', solid)
-    cv2.imshow('render2', normals)
-    cv2.imshow('depth', 1. - (depth - dmin) / (dmax-dmin))
+    cv2.imshow('solid', solid)
+    cv2.imshow('normals', normals)
+    cv2.imshow('depth', depth)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
-    cv2.imwrite("depth.tiff", depth)
+
+    cv2.imwrite("depth.jpg", depth)
     cv2.imwrite("mask.jpg", solid)
     cv2.imwrite("normals.jpg", normals)
