@@ -27,9 +27,10 @@ import pickle
 
 torch.backends.cudnn.enabled = False
 
+PROJECT_ROOT = realpath(join(__file__, ".."))
 
 class SmplifyX:
-    def __init__(self, conf_file: str = r".\smplx_conf.yaml", conf_override: Optional[dict] = None):
+    def __init__(self, conf_file: str = osp.join(PROJECT_ROOT, "smplx_conf.yaml"), conf_override: Optional[dict] = None):
         with open(conf_file, "r") as file:
             self.configuration = yaml.load(file, Loader=yaml.FullLoader)
         if conf_override is not None:

@@ -10,10 +10,10 @@ import torchvision.transforms.functional as F
 import cv2
 import time
 import segmentation_refinement as refine
-from os.path import join
+from os.path import join, realpath
 from os import getcwd
 
-IMAGES_DIR = join(getcwd(), "..", "models")
+MODELS_DIR = realpath(join(__file__, "..", "models"))
 
 
 class Mask:
@@ -21,7 +21,7 @@ class Mask:
     def __init__(self, img_path, save_path, is_debug=True, detect_thresh=0.4, device='cuda'):
         self.img_path = img_path
         self.save_path = save_path
-        self.refine_model = IMAGES_DIR
+        self.refine_model = MODELS_DIR
         self.detect_thresh = detect_thresh
         self.is_debug = is_debug  # if set to True, save all outputs during the process
         self.device = device if torch.cuda.is_available() else 'cpu'
@@ -74,7 +74,7 @@ class Mask:
         self.mask = refiner.refine(image_np, mask_np, fast=False, L=900)
         print("***Finished refining***")
         if self.is_debug:
-            cv2.imwrite(join(self.save_path, "refine_mask.png"), self.mask)
+            cv2.imwrite(join(self.save_path, "refined_mask.png"), self.mask)
 
     def create_mask(self):
         self.get_person_mask()

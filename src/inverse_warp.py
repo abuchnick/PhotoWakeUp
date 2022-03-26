@@ -5,8 +5,10 @@ from os.path import join
 import matplotlib.pyplot as plt
 
 IMAGES_DIR = join(getcwd(), "..", "images")
-PATH_TO_ORG_MASK = join(IMAGES_DIR, "org_mask (Custom).jpeg")
-PATH_TO_SMPL_MASK = join(IMAGES_DIR, "smpl_mask (Custom).jpeg")
+PATH_TO_ORG_MASK = join(IMAGES_DIR, "refined_mask.png")  # TODO still doesn't have this file
+# PATH_TO_ORG_MASK = join(IMAGES_DIR, "org_mask (Custom).jpeg")
+PATH_TO_SMPL_MASK = join(IMAGES_DIR, "smpl_mask.jpeg")
+# PATH_TO_SMPL_MASK = join(IMAGES_DIR, "smpl_mask (Custom).jpeg")
 PATH_TO_NORMALS_MAP = join(IMAGES_DIR, "normals_map (Custom).jpeg")
 PATH_TO_DEPTH_MAP = join(IMAGES_DIR, "smpl_depth_map (Custom).jpeg")
 
@@ -30,8 +32,7 @@ def argmin_sub_array(arr, start, end):
     return min_val, index
 
 
-def get_contours(mask_img_path):
-    img = cv2.imread(mask_img_path)
+def get_contours(img):
     gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # to use cv2.threshold the img must be a grayscale img
     _, thresholded_image = cv2.threshold(gray_img, 100, 255, cv2.THRESH_BINARY)  # each value below 100 will become 0, and above will become 255
     contours, _ = cv2.findContours(thresholded_image, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)  # retrieve all points in contour(don't approximate) and save full hirarchy
@@ -39,8 +40,7 @@ def get_contours(mask_img_path):
     return contours
 
 
-def find_inner_pixels(mask_img_path, contour_points):
-    img = cv2.imread(mask_img_path)
+def find_inner_pixels(img, contour_points):
     inner_pixels = []
     h, w, _ = img.shape
 
@@ -99,10 +99,10 @@ def mean_value_coordinates(org_contours_pixels, inner_pixel):
     return mvc / mvc.sum()
 
 
-def inverse_warp():
-    org_contours = get_contours(PATH_TO_ORG_MASK)  # shape == (m, 2)
-    org_inner_pixels = find_inner_pixels(PATH_TO_ORG_MASK, org_contours)
-    smpl_contours = get_contours(PATH_TO_SMPL_MASK)  # shape == (n, 2)
+def inverse_warp(refined_mask_img, smpl_mask_img):
+    org_contours = get_contours(refined_mask_img)  # shape == (m, 2)
+    org_inner_pixels = find_inner_pixels(refined_mask_img, org_contours)
+    smpl_contours = get_contours(smpl_mask_img)  # shape == (n, 2)
     correspondence = boundary_match(org_contours, smpl_contours)  # shape == (m, )
     result = []
     for inner_pixel in org_inner_pixels:
@@ -130,16 +130,16 @@ if __name__ == '__main__':
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
     # NORMALS INVERSE WARP
-    f = inverse_warp()
-    normals_map = cv2.imread(PATH_TO_NORMALS_MAP)
-    normals_map_projected = np.zeros_like(normals_map)
-    depth_map = cv2.imread(PATH_TO_DEPTH_MAP)
-    depth_map_projected = np.zeros_like(depth_map)
-    for corr in f:
-        normals_map_projected[corr[0][1], corr[0][0], :] = normals_map[corr[1][1], corr[1][0], :]
-        depth_map_projected[corr[0][1], corr[0][0], :] = depth_map[corr[1][1], corr[1][0], :]
-    cv2.imwrite(join(IMAGES_DIR, "depth_projected.png"), depth_map_projected)
-    cv2.imwrite(join(IMAGES_DIR, "normals_projected.png"), normals_map_projected)
+    # f = inverse_warp()
+    # normals_map = cv2.imread(PATH_TO_NORMALS_MAP)
+    # normals_map_projected = np.zeros_like(normals_map)
+    # depth_map = cv2.imread(PATH_TO_DEPTH_MAP)
+    # depth_map_projected = np.zeros_like(depth_map)
+    # for corr in f:
+    #     normals_map_projected[corr[0][1], corr[0][0], :] = normals_map[corr[1][1], corr[1][0], :]
+    #     depth_map_projected[corr[0][1], corr[0][0], :] = depth_map[corr[1][1], corr[1][0], :]
+    # cv2.imwrite(join(IMAGES_DIR, "depth_projected.png"), depth_map_projected)
+    # cv2.imwrite(join(IMAGES_DIR, "normals_projected.png"), normals_map_projected)
     # cv2.imshow("ahlan normals", normals_map_projected)
     # cv2.imshow("ahlan depth", depth_map_projected)
     # cv2.waitKey(0)
