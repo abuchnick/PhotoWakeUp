@@ -8,7 +8,7 @@ IMAGES_DIR = join(getcwd(), "..", "images")
 PATH_TO_ORG_MASK = join(IMAGES_DIR, "org_mask (Custom).jpeg")
 PATH_TO_SMPL_MASK = join(IMAGES_DIR, "smpl_mask (Custom).jpeg")
 PATH_TO_NORMALS_MAP = join(IMAGES_DIR, "normals_map (Custom).jpeg")
-PATH_TO_DEPTH_MAP = join(IMAGES_DIR, "depth_map.tiff")
+PATH_TO_DEPTH_MAP = join(IMAGES_DIR, "smpl_depth_map (Custom).jpeg")
 
 
 def argmin_sub_array(arr, start, end):
@@ -133,12 +133,14 @@ if __name__ == '__main__':
     f = inverse_warp()
     normals_map = cv2.imread(PATH_TO_NORMALS_MAP)
     normals_map_projected = np.zeros_like(normals_map)
-    depth_map = cv2.imread(PATH_TO_DEPTH_MAP, cv2.IMREAD_ANYDEPTH)
+    depth_map = cv2.imread(PATH_TO_DEPTH_MAP)
     depth_map_projected = np.zeros_like(depth_map)
     for corr in f:
         normals_map_projected[corr[0][1], corr[0][0], :] = normals_map[corr[1][1], corr[1][0], :]
         depth_map_projected[corr[0][1], corr[0][0], :] = depth_map[corr[1][1], corr[1][0], :]
-    cv2.imshow("ahlan normals", normals_map_projected)
-    cv2.imshow("ahlan depth", depth_map_projected)
-    cv2.waitKey(0)
+    cv2.imwrite(join(IMAGES_DIR, "depth_projected.png"), depth_map_projected)
+    cv2.imwrite(join(IMAGES_DIR, "normals_projected.png"), normals_map_projected)
+    # cv2.imshow("ahlan normals", normals_map_projected)
+    # cv2.imshow("ahlan depth", depth_map_projected)
+    # cv2.waitKey(0)
     print(1)

@@ -9,20 +9,22 @@ from torchvision.transforms import ToTensor
 import torchvision.transforms.functional as F
 import cv2
 import time
-import matplotlib.pyplot as plt
 import segmentation_refinement as refine
-import numpy as np
+from os.path import join
+from os import getcwd
+
+IMAGES_DIR = join(getcwd(), "..", "models")
 
 
 class Mask:
 
-    def __init__(self, img_path, save_path, refine_model, detect_thresh=0.4, debug=True, device='cuda'):
+    def __init__(self, img_path, save_path, is_debug=True, detect_thresh=0.4, device='cuda'):
         self.img_path = img_path
         self.save_path = save_path
-        self.detect_tresh = detect_thresh
-        self.debug = debug
+        self.refine_model = IMAGES_DIR
+        self.detect_thresh = detect_thresh
+        self.is_debug = is_debug  # if set to True, save all outputs during the process
         self.device = device if torch.cuda.is_available() else 'cpu'
-        self.refine_model = refine_model
 
         self.mask = None
         self.img = None
@@ -35,7 +37,7 @@ class Mask:
     def save_img(self, img, img_name):
         img = img.detach()
         img = F.to_pil_image(img)
-        img.save(f"{self.save_path}\{img_name}.png")
+        img.save(join(self.save_path, img_name + ".png"))
 
     def get_person_mask(self):
         print("***Creating mask***")
@@ -47,6 +49,7 @@ class Mask:
 
         with torch.no_grad():
             predictions = model(image_tensor)[0]
+        # take the mask of the person with the largest bounding box in frame
         num_of_detections = len(predictions['labels'])
         persons = [
             {'mask': predictions['masks'][i], 'box': predictions['boxes'][i]}
@@ -58,18 +61,20 @@ class Mask:
                                             torch.abs(person['box'][3] - person['box'][1])), persons))
 
         self.mask = (persons[np.argmax(areas)]['mask'] > 0.5).float()
-        print("***finished creating mask***")
-        print("***Saving mask***")
-        self.save_img(self.mask, "mask")
+        print("***Finished creating mask***")
+        if self.is_debug:
+            print("***Saving mask***")
+            self.save_img(self.mask, "mask")
 
     def refine_mask(self):
         print("***Start refining***")
         image_np = cv2.imread(self.img_path)
-        mask_np = cv2.imread(f"{self.save_path}\mask.png", cv2.IMREAD_GRAYSCALE)
+        mask_np = cv2.imread(join(self.save_path, "mask.png"), cv2.IMREAD_GRAYSCALE)
         refiner = refine.Refiner(device=self.device, model_folder=self.refine_model)  # device can also be 'cpu'
         self.mask = refiner.refine(image_np, mask_np, fast=False, L=900)
         print("***Finished refining***")
-        cv2.imwrite(f"{self.save_path}\refine_mask.png", self.mask)
+        if self.is_debug:
+            cv2.imwrite(join(self.save_path, "refine_mask.png"), self.mask)
 
     def create_mask(self):
         self.get_person_mask()
@@ -80,8 +85,7 @@ class Mask:
 if __name__ == "__main__":
     mask = Mask(
         img_path=r"C:\Users\talha\Desktop\study\semester 7\steph.png",
-        save_path=r"C:\Users\talha\Desktop\study\semester 7",
-        refine_model= r"C:\Users\talha\Desktop\study\semester 7\פרויקט\AVR-Project\models"
+        save_path=r"C:\Users\talha\Desktop\study\semester 7"
     )
     mask.create_mask()
 
