@@ -20,8 +20,8 @@ def warp(warp_fn, map_img):
 
 
 # TODO if have sufficient time - complete configuration definition & sys.argv path to image
-
 if __name__ == '__main__':
+    # Load Configuration
     with open(join(PROJECT_ROOT, "config.json"), 'r') as cfg:
         configuration = json.load(cfg)
     images_dir_path = join(PROJECT_ROOT, "data", configuration["imagesDirectoryName"])
@@ -51,6 +51,7 @@ if __name__ == '__main__':
     cv2.imwrite("smpl_depth.tiff", smpl_depth)
     cv2.imwrite("smpl_mask.jpg", smpl_mask)
     cv2.imwrite("smpl_normals.jpg", smpl_normals)
+    projection_matrix = renderer.projection_matrix
 
     warp_func = inverse_warp(refined_mask_img=segmentation,
                              smpl_mask_img=smpl_mask)
