@@ -9,7 +9,9 @@ class Reconstruct:
         self.depth_map = cv.imread(depth_map_coarse)
         self.mask = cv.imread(mask)
         self.inner_pts = []
-        self.boundery_pts = []
+        self.boundary_pts = []
+        self.vertices = []
+        self.faces = []
 
     def classify_points(self):
         gray_img = cv.cvtColor(self.mask, cv.COLOR_BGR2GRAY)  # to use cv.threshold the img must be a grayscale img
@@ -25,17 +27,11 @@ class Reconstruct:
                 if cv.pointPolygonTest(contours, (j, i), False) == 1:
                     self.inner_pts.append([i, j])
                 elif cv.pointPolygonTest(contours, (j, i), False) == 0:
-                    self.boundery_pts.append([i, j])
+                    self.boundary_pts.append([i, j])
 
     def create_mesh(self):
-
         self.classify_points()
-
-        points = self.inner_pts + self.boundery_pts
-
-        vertices = []
-        faces = []
-
+        points = self.inner_pts + self.boundary_pts
         mapping = {}
 
         print("Creating vertices")
@@ -43,7 +39,7 @@ class Reconstruct:
         for idx, point in enumerate(points):
             y, x = point
             z = self.depth_map[y, x][0]
-            vertices.append([x, y, z])
+            self.vertices.append([x, y, z])
             mapping[(x, y)] = idx
 
         print("Creating faces")
@@ -51,15 +47,14 @@ class Reconstruct:
         for point in points:
             y, x = point
             if [y + 1, x] in points and [y + 1, x + 1] in points:
-                faces.append([mapping[(x, y)], mapping[(x, y + 1)], mapping[(x + 1, y + 1)]])
+                self.faces.append([mapping[(x, y)], mapping[(x, y + 1)], mapping[(x + 1, y + 1)]])
 
-        mesh = trimesh.Trimesh(vertices=vertices,
-                               faces=faces)
-        mesh.show()
+        _mesh = trimesh.Trimesh(vertices=self.vertices,
+                                faces=self.faces)
+        _mesh.show()
 
 
 if __name__ == "__main__":
     mesh = Reconstruct(r'C:\Users\talha\Desktop\study\semester 7\inner.jpeg',
-                 r'C:\Users\talha\Desktop\study\semester 7\depth.png')
-
+                       r'C:\Users\talha\Desktop\study\semester 7\depth.png')
     mesh.create_mesh()
