@@ -34,7 +34,7 @@ class PoseEstimator:
         if params_override is not None:
             self.params.update(params_override)
 
-    def __call__(self, img_path):
+    def __call__(self, image_to_process, datum_name):
         cwd = os.getcwd()
         try:
             os.chdir(OPENPOSE_DIR_PATH)
@@ -43,9 +43,8 @@ class PoseEstimator:
             op_wrapper.start()
 
             datum = op.Datum()
-            image_to_process = cv2.imread(img_path)
             datum.cvInputData = image_to_process
-            datum.name = ".".join(os.path.basename(img_path).split(".")[0:-1])
+            datum.name = datum_name
             op_wrapper.emplaceAndPop(op.VectorDatum([datum]))
         finally:
             op_wrapper.stop()
