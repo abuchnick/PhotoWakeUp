@@ -47,36 +47,80 @@ class DepthMap:
 
         points = self.inner_pts + self.boundery_pts
 
-        A = sparse.lil_array((2 * len(points) + len(self.boundery_pts), h*w))
-        b = np.zeros(2 * len(points) + len(self.boundery_pts))
+        A = sparse.lil_array((4 * len(points) + len(self.boundery_pts), h*w))
+        b = np.zeros(4 * len(points) + len(self.boundery_pts))
         inx = 0
         for i in self.inner_pts:
-            A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][0]
-            A[inx, i[0] * w + i[1] + 1] = normal_decode[i[0], i[1]][0]
-            b[inx] = normal_decode[i[0], i[1]][0]
-            inx+=1
+            if normal_decode[i[0], i[1]][2] < -0.15 or normal_decode[i[0], i[1]][2] > 0.15:
+                A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][2]
+                A[inx, i[0] * w + i[1] + 1] = normal_decode[i[0], i[1]][2]
+                b[inx] = normal_decode[i[0], i[1]][0]
+                inx += 1
 
-            A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][0]
-            A[inx, (i[0] + 1) * w + i[1]] = normal_decode[i[0], i[1]][0]
-            normal_decode[i[0], i[1]][1]
-            inx += 1
+                A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][2]
+                A[inx, (i[0] + 1) * w + i[1]] = normal_decode[i[0], i[1]][2]
+                b[inx] = normal_decode[i[0], i[1]][1]
+                inx += 1
+
+                A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][2]
+                A[inx, i[0] * w + i[1] - 1] = normal_decode[i[0], i[1]][2]
+                b[inx] = normal_decode[i[0], i[1]][0]
+                inx += 1
+
+                A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][2]
+                A[inx, (i[0] - 1) * w + i[1]] = normal_decode[i[0], i[1]][2]
+                b[inx] = normal_decode[i[0], i[1]][1]
+                inx += 1
+            else:
+                A[inx, i[0] * w + i[1]] = normal_decode[i[0], i[1]][1] - normal_decode[i[0], i[1]][0]
+                A[inx, i[0] * w + i[1] + 1] = -1 * normal_decode[i[0], i[1]][1]
+                A[inx, (i[0] + 1) * w + i[1]] = normal_decode[i[0], i[1]][0]
+                b[inx] = 0
+                inx += 1
+                A[inx, i[0] * w + i[1]] = normal_decode[i[0], i[1]][1] - normal_decode[i[0], i[1]][0]
+                A[inx, i[0] * w + i[1] - 1] = -1 * normal_decode[i[0], i[1]][1]
+                A[inx, (i[0] + 1) * w + i[1]] = normal_decode[i[0], i[1]][0]
+                b[inx] = 0
+                inx += 1
 
         for i in self.boundery_pts:
             A[inx, i[0] * w + i[1]] = 1
             b[inx] = self.depth_map_coarse[i[0], i[1]][0]
-            inx+=1
-
-            if [i[0], i[1] + 1] in self.inner_pts:
-                A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][0]
-                A[inx, i[0] * w + i[1] + 1] = normal_decode[i[0], i[1]][0]
-                b[inx] = normal_decode[i[0], i[1]][0]
-                inx += 1
-            if [i[0] + 1, i[1] ] in points:
-                A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][0]
-                A[inx, (i[0] + 1) * w + i[1]] = normal_decode[i[0], i[1]][0]
-                normal_decode[i[0], i[1]][1]
-                inx += 1
-
+            inx += 1
+            if normal_decode[i[0], i[1]][2] < -0.05 or normal_decode[i[0], i[1]][2] > 0.05:
+                if [i[0], i[1] + 1] in points:
+                    A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][2]
+                    A[inx, i[0] * w + i[1] + 1] = normal_decode[i[0], i[1]][2]
+                    b[inx] = normal_decode[i[0], i[1]][0]
+                    inx += 1
+                if [i[0] + 1, i[1]] in points:
+                    A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][2]
+                    A[inx, (i[0] + 1) * w + i[1]] = normal_decode[i[0], i[1]][2]
+                    b[inx] = normal_decode[i[0], i[1]][1]
+                    inx += 1
+                if [i[0], i[1] - 1] in points:
+                    A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][2]
+                    A[inx, i[0] * w + i[1] - 1] = normal_decode[i[0], i[1]][2]
+                    b[inx] = normal_decode[i[0], i[1]][0]
+                    inx += 1
+                if [i[0] - 1, i[1]] in points:
+                    A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][2]
+                    A[inx, (i[0] - 1) * w + i[1]] = normal_decode[i[0], i[1]][2]
+                    b[inx] = normal_decode[i[0], i[1]][1]
+                    inx += 1
+            else:
+                if [i[0], i[1] + 1] in points and [i[0] + 1, i[1]] in points:
+                    A[inx, i[0] * w + i[1]] = normal_decode[i[0], i[1]][1] - normal_decode[i[0], i[1]][0]
+                    A[inx, i[0] * w + i[1] + 1] = -1 * normal_decode[i[0], i[1]][1]
+                    A[inx, (i[0] + 1) * w + i[1]] = normal_decode[i[0], i[1]][0]
+                    b[inx] = 0
+                    inx += 1
+                if [i[0], i[1] - 1] in points and [i[0] - 1, i[1]] in points:
+                    A[inx, i[0] * w + i[1]] = normal_decode[i[0], i[1]][1] - normal_decode[i[0], i[1]][0]
+                    A[inx, i[0] * w + i[1] - 1] = -1 * normal_decode[i[0], i[1]][1]
+                    A[inx, (i[0] + 1) * w + i[1]] = normal_decode[i[0], i[1]][0]
+                    b[inx] = 0
+                    inx += 1
 
 
         print("calculated values")
@@ -91,13 +135,13 @@ class DepthMap:
 
         print("finished depth map")
 
-        cv.imwrite('depth map.jpeg', self.depth_map_filled)
+        cv.imwrite('depth_map.jpeg', self.depth_map_filled)
 
 
 
 if __name__ == "__main__":
     depth_map = DepthMap(r'C:\Users\talha\Desktop\study\semester 7\inner.jpeg',
-                 r'C:\Users\talha\Desktop\study\semester 7\smpl_depth_map.jpeg',
-                 r'C:\Users\talha\Desktop\study\semester 7\normal.jpeg')
+                 r'C:\Users\talha\Desktop\study\semester 7\depth.png',
+                 r'C:\Users\talha\Desktop\study\semester 7\normals.png')
 
     depth_map.warp_depth_map()
