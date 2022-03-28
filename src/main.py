@@ -24,12 +24,10 @@ def warp(warp_fn, map_img):
 
 # TODO move to other file
 def uv_coordinates(_vertices, _faces, _img_size):
-    img_height = _img_size[0]
     img_width = _img_size[1]
-    normalized_x_coords = _vertices[0] / img_width
-    normalized_y_coords = _vertices[1] / img_height
-    _uv_coords = np.append(normalized_x_coords, normalized_y_coords)
-    return _uv_coords
+    img_height = _img_size[0]
+    normalized_xy_coords = _vertices[:2] / np.array([img_width, img_height])
+    return np.take(a=normalized_xy_coords, indices=_faces, axis=0)  # shape(m, 3, 2)
 
 
 # TODO if have sufficient time - complete configuration definition & sys.argv path to image
