@@ -44,7 +44,7 @@ class Reconstruct:
         faces = []
 
         for idx, i in enumerate(self.inner):
-            q1 = -self.depth_front[i[0], i[1]]
+            q1 = self.depth_front[i[0], i[1]]
             q2 = self.depth_back[i[0], i[1]]
             if q1 > q2:
                 mid = (q1 + q2) / 2
