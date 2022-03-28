@@ -40,44 +40,44 @@ class Reconstruct:
         qurt = []
         points = self.inner + self.boundary
 
-        with open(r'b_rat285.obj', 'w+') as file:
-            for idx, i in enumerate(self.inner):
-                q1 = self.depth_front[i[0], i[1]]
-                q2 = self.depth_back[i[0], i[1]]
-                if q1 > q2:
-                    mid = (q1 + q2) / 2
-                    q1 = mid
-                    q2 = mid
-                file.write('v ' + str(i[0]) + ' ' + str(i[1]) + ' ' + str(q1) + '\n')
-                file.write('v ' + str(i[0]) + ' ' + str(i[1]) + ' ' + str(q2) + '\n')
-                map_front[(i[1], i[0])] = idx
-                map_back[(i[1], i[0])] = idx
+        vertices = []
+        faces = []
 
-            len_pts = len(self.inner)
-            for idx, i in enumerate(self.boundary):
-                q1 = self.depth_front[i[0], i[1]]
-                q2 = self.depth_back[i[0], i[1]]
+        for idx, i in enumerate(self.inner):
+            q1 = -self.depth_front[i[0], i[1]]
+            q2 = self.depth_back[i[0], i[1]]
+            if q1 > q2:
                 mid = (q1 + q2) / 2
-                file.write('v ' + str(i[0]) + ' ' + str(i[1]) + ' ' + str(mid) + '\n')
-                file.write('v ' + str(i[0]) + ' ' + str(i[1]) + ' ' + str(mid) + '\n')
-                map_front[(i[1], i[0])] = idx + len_pts
-                map_back[(i[1], i[0])] = idx + len_pts
+                q1 = mid
+                q2 = mid
+            vertices.append([i[0], i[1], q1])
+            vertices.append([i[0], i[1],q2])
+            map_front[(i[1], i[0])] = 2 * idx
+            map_back[(i[1], i[0])] = 2 * idx + 1
 
-            # surface
-            for i in range(w):
-                for j in range(h):
-                    if [j,i] in points and [j + 1][i] in points and [j + 1][i + 1] in points and [j][i + 1] in points:
-                        qurt.append([map_front[j, i], map_front[j + 1, i], map_front[j + 1, i + 1],
-                                     map_front[j, i + 1]])
-                        file.write('f ' + str(int(map_front[j, i])) + ' ' + str(int(map_front[j + 1, i])) + ' ' + str(int(map_front[j, i + 1])) + '\n')
-                        file.write('f ' + str(int(map_front[j + 1, i])) + ' ' + str(int(map_front[j + 1, i + 1])) + ' ' + str(int( map_front[j, i + 1])) + '\n')
-                        file.write('f ' + str(int(map_back[j, i])) + ' ' + str(int(map_back[j, i + 1])) + ' ' + str(int(map_back[j + 1, i])) + '\n')
-                        file.write('f ' + str(int(map_back[j + 1, i])) + ' ' + str(int(map_back[j, i + 1])) + ' ' + str(int( map_back[j + 1, i + 1])) + '\n')
+        len_pts = len(self.inner)
+        for idx, i in enumerate(self.boundary):
+            q1 = self.depth_front[i[0], i[1]]
+            q2 = self.depth_back[i[0], i[1]]
+            mid = (q1 + q2) / 2
+            vertices.append([i[0], i[1], mid])
+            vertices.append([i[0], i[1], mid])
+            map_front[(i[1], i[0])] = 2 * idx + len_pts
+            map_back[(i[1], i[0])] = 2 * idx + 1 + len_pts
 
+        for i, j in points:
+            if [j, i] in points and [j + 1] in points and [j + 1][i + 1] in points and [j][i + 1] in points:
+                faces.append([map_front[j, i], map_front[j + 1, i], map_front[j, i + 1]])
+                faces.append([map_front[j + 1, i], map_front[j + 1, i + 1], map_front[j, i + 1]])
+                faces.append([map_back[j, i], map_back[j, i + 1], map_back[j + 1, i]])
+                faces.append([map_back[j + 1, i], map_back[j, i + 1], map_back[j + 1, i + 1]])
 
+        mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
+        mesh.show()
 
 if __name__ == "__main__":
     mesh = Reconstruct(r'C:\Users\talha\Desktop\study\semester 7\inner.jpeg',
-                 r'C:\Users\talha\Desktop\study\semester 7\depth.png')
+                 r'C:\Users\talha\Desktop\study\semester 7\depth.png',
+                       r'C:\Users\talha\Desktop\study\semester 7\depth.png')
 
     mesh.create_mesh()
