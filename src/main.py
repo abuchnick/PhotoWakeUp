@@ -22,14 +22,6 @@ def warp(warp_fn, map_img):
     return map_img_projected
 
 
-# TODO move to other file
-def uv_coordinates(_vertices, _faces, _img_size):
-    img_width = _img_size[1]
-    img_height = _img_size[0]
-    normalized_xy_coords = _vertices[:2] / np.array([img_width, img_height])
-    return np.take(a=normalized_xy_coords, indices=_faces, axis=0)  # shape(m, 3, 2)
-
-
 # TODO if have sufficient time - complete configuration definition & sys.argv path to image
 if __name__ == '__main__':
     # Load Configuration
@@ -63,16 +55,18 @@ if __name__ == '__main__':
         camera_rotation=result['camera']['rotation']
     )
     smpl_mask, smpl_depth = renderer.render_solid(get_depth_map=True)
-    smpl_normals = renderer.render_normals()
+    _, smpl_back_depth = renderer.render_solid(get_depth_map=True, back_side=True)
+    # smpl_normals = renderer.render_normals()
     cv2.imwrite("smpl_depth.tiff", smpl_depth)
+    cv2.imwrite("smpl_back_depth.tiff", smpl_back_depth)
     cv2.imwrite("smpl_mask.jpg", smpl_mask)
-    cv2.imwrite("smpl_normals.jpg", smpl_normals)
+    # cv2.imwrite("smpl_normals.jpg", smpl_normals)
     projection_matrix = renderer.projection_matrix
 
     warp_func = inverse_warp(refined_mask_img=segmentation,
                              smpl_mask_img=smpl_mask)
-    projected_normals = warp(warp_fn=warp_func,
-                             map_img=smpl_normals)
+    # projected_normals = warp(warp_fn=warp_func,
+    #                          map_img=smpl_normals)
     projected_depth = warp(warp_fn=warp_func,
                            map_img=smpl_depth)
     # TODO need to rebuild depth map using the projected normals, the integrative way
@@ -80,7 +74,9 @@ if __name__ == '__main__':
 
     # TODO need to create & project skinning map
     mesh_reconstructor = Reconstruct(mask=segmentation,
-                                     depth_map_coarse=projected_depth)
+                                     depth_front=projected_depth,
+                                     depth_back=smpl_back_depth,
+                                     projection_matrix=projection_matrix)
     vertices, faces = mesh.create_mesh()  # TODO need to save to file..
 
     uv_coords = uv_coordinates(vertices, faces, img_size)
