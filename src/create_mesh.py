@@ -6,53 +6,72 @@ from inverse_warp import get_contours
 
 class Reconstruct:
 
-    def __init__(self, mask, depth_map_coarse):
-        self.depth_map = depth_map_coarse  # instead of path to images, we just give the images
+    def __init__(self, mask,  depth_front, depth_back):
+        self.depth_front = depth_front  # instead of path to images, we just give the images
+        self.depth_back = depth_back
         self.mask = mask
-        self.inner_pts = []
-        self.boundary_pts = []
+        self.inner = []
+        self.boundary = []
 
     def classify_points(self):
         contours = get_contours(self.mask)
-        for i in range(self.depth_map.shape[0]):
-            for j in range(self.depth_map.shape[1]):
+        for i in range(self.mask.shape[0]):
+            for j in range(self.mask.shape[1]):
                 if cv.pointPolygonTest(contours, (j, i), False) == 1:
-                    self.inner_pts.append([i, j])
+                    self.inner.append([i, j])
                 elif cv.pointPolygonTest(contours, (j, i), False) == 0:
-                    self.boundary_pts.append([i, j])
+                    self.boundary.append([i, j])
 
     def create_mesh(self):
         self.classify_points()
-        points = self.inner_pts + self.boundary_pts
+
+        h = self.mask.shape[0]
+        w = self.mask.shape[1]
+        map_front = {}
+        map_back = {}
+        qurt = []
+        points = self.inner + self.boundary
 
         vertices = []
         faces = []
-        mapping = {}
 
-        print("Creating vertices")
+        for idx, i in enumerate(self.inner):
+            q1 = self.depth_front[i[0], i[1]]
+            q2 = self.depth_back[i[0], i[1]]
+            if q1 > q2:
+                mid = (q1 + q2) / 2
+                q1 = mid
+                q2 = mid
+            vertices.append([i[0], i[1], q1])
+            vertices.append([i[0], i[1],q2])
+            map_front[(i[1], i[0])] = 2 * idx
+            map_back[(i[1], i[0])] = 2 * idx + 1
 
-        for idx, point in enumerate(points):
-            y, x = point
-            z = self.depth_map[y, x][0]
-            vertices.append([x, y, z])
-            mapping[(x, y)] = idx
+        len_pts = len(self.inner)
+        for idx, i in enumerate(self.boundary):
+            q1 = self.depth_front[i[0], i[1]]
+            q2 = self.depth_back[i[0], i[1]]
+            mid = (q1 + q2) / 2
+            vertices.append([i[0], i[1], mid])
+            vertices.append([i[0], i[1], mid])
+            map_front[(i[1], i[0])] = 2 * idx + len_pts
+            map_back[(i[1], i[0])] = 2 * idx + 1 + len_pts
 
-        print("Creating faces")
+        for i, j in points:
+            if [j, i] in points and [j + 1] in points and [j + 1][i + 1] in points and [j][i + 1] in points:
+                faces.append([map_front[j, i], map_front[j + 1, i], map_front[j, i + 1]])
+                faces.append([map_front[j + 1, i], map_front[j + 1, i + 1], map_front[j, i + 1]])
+                faces.append([map_back[j, i], map_back[j, i + 1], map_back[j + 1, i]])
+                faces.append([map_back[j + 1, i], map_back[j, i + 1], map_back[j + 1, i + 1]])
 
-        for point in points:
-            y, x = point
-            if [y + 1, x] in points and [y + 1, x + 1] in points:
-                faces.append([mapping[(x, y)], mapping[(x, y + 1)], mapping[(x + 1, y + 1)]])
-
-        _mesh = trimesh.Trimesh(vertices=vertices,
-                                faces=faces)
-        _mesh.show()
+        mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
+        mesh.show()
 
         return np.array(vertices), np.array(faces)
 
 
 if __name__ == "__main__":
-    pass
-    # mesh = Reconstruct(r'C:\Users\talha\Desktop\study\semester 7\inner.jpeg',
-    #                    r'C:\Users\talha\Desktop\study\semester 7\depth.png')
-    # mesh.create_mesh()
+    mesh = Reconstruct(r'C:\Users\talha\Desktop\study\semester 7\inner.jpeg',
+                 r'C:\Users\talha\Desktop\study\semester 7\depth.png',
+                       r'C:\Users\talha\Desktop\study\semester 7\depth.png')
+    mesh.create_mesh()
