@@ -45,9 +45,6 @@ class PoseEstimator:
             datum.cvInputData = image_to_process
             datum.name = ".".join(os.path.basename(img_path).split(".")[0:-1])
             op_wrapper.emplaceAndPop(op.VectorDatum([datum]))
-            return dict(
-                keypoints=datum.keypoints
-            )
         finally:
             op_wrapper.stop()
             os.chdir(cwd)

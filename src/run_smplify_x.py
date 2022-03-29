@@ -48,6 +48,15 @@ class SmplifyX:
                 'Unknown float type {}, exiting!'.format(float_dtype))
 
     def __call__(self):
+        cwd = os.getcwd()
+        try:
+            # change working directory to project root
+            os.chdir(os.path.abspath(os.path.join(__file__, '..')))
+            self.run()
+        finally:
+            os.chdir(cwd)
+
+    def run(self):
         output_folder = self.configuration.pop('output_folder')
         if not osp.exists(output_folder):
             os.makedirs(output_folder)
@@ -296,11 +305,13 @@ class SmplifyX:
                 output_type='aa').view(1, -1)
         model_output = model(return_verts=True, body_pose=body_pose)
         vertices = model_output.vertices.detach().cpu().numpy().squeeze()
+        joints = model_output.joints.detach().cpu().numpy().squeeze()
         # convert to OpenGL compatible axis
         vertices = vertices  @ np.diag([1, -1, -1])
-        faces = model.faces
-        skinning_map = model.lbs_weights
-        return dict(vertices=vertices, faces=faces, skinning_map=skinning_map)
+        joints = joints  @ np.diag([1, -1, -1])
+        faces = model.faces.detach().cpu().numpy().squeeze()
+        skinning_map = model.lbs_weights.detach().cpu().numpy().squeeze()
+        return dict(vertices=vertices, faces=faces, skinning_map=skinning_map, joints=joints)
 
 
 if __name__ == "__main__":

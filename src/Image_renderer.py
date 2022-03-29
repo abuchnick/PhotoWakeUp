@@ -30,8 +30,7 @@ class Renderer:
         self.ctx.enable(gl.DEPTH_TEST)
         self.vertices = vertices
         self.faces = faces
-        mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
-        self.normals = mesh.vertex_normals
+        self.normals = None
         self.znear = znear
         self.zfar = zfar
         self.img_shape = img_shape
@@ -43,11 +42,9 @@ class Renderer:
         )
         self.ibo = self.ctx.buffer(data=faces.astype(np.uint16).tobytes())
 
-        self.vnbo = self.ctx.buffer(
-            data=self.normals.astype(np.float32).tobytes()
-        )
+        self.vnbo = self.ctx.buffer(reserve=self.vbo.size)
 
-        self.fbo = fbo = self.ctx.simple_framebuffer(
+        self.fbo = self.ctx.simple_framebuffer(
             size=tuple(reversed(img_shape)),
             components=3
         )
@@ -59,11 +56,14 @@ class Renderer:
         self.vbo.release()
         self.ctx.release()
 
-    def render_solid(self, get_depth_map=False) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+    def render_solid(self, get_depth_map=False, back_side=False) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         program = self.load_shader('solid')
 
+        R = np.eye(4, dtype=self.projection_matrix.dtype)
+        R[2, 2] = -1 if back_side else 1
+
         program['projection'].write(
-            self.projection_matrix.tobytes('F')
+            (R @ self.projection_matrix).tobytes('F')
         )
 
         vao = self.ctx.vertex_array(
@@ -86,21 +86,36 @@ class Renderer:
         if get_depth_map:
             depth_map = np.flip(np.frombuffer(
                 self.fbo.read(attachment=-1, dtype='f4'), dtype='f4').reshape(*self.img_shape), axis=0)
-            depth_map = np.where(depth_map == 1.0, float('inf'), depth_map)
+            depth_map = np.where(depth_map == 1.0, float('inf'),  1.0-2.0*depth_map if back_side else 2.0*depth_map-1.0)
             return render, depth_map
 
         return render
 
-    def render_normals(self) -> np.ndarray:
+    def render_normals(self, back_side=False) -> np.ndarray:
         program = self.load_shader('normals')
 
-        program['projection'].write(
-            self.projection_matrix.tobytes('F')
-        )
+        P = self.projection_matrix
+        if back_side:
+            P = P * np.array([1, 1, -1, 1], dtype=np.float32).reshape(4, 1)
+
+        program['projection'].write(P.tobytes('F'))
 
         program['normals_projection'].write(
-            self.normals_projection.tobytes('F')
+            np.diag(np.array([-1, -1, (-1 if back_side else 1)], dtype=np.float32)).tobytes('F')
         )
+
+        if self.normals is None:
+            N = self.vertices.shape[0]
+            homogeneus_vertices = np.c_[self.vertices, np.ones(N)]
+            homogeneus_projected_vertices = np.einsum('ij,vj->vi', P, homogeneus_vertices)
+            projected_vertices = homogeneus_projected_vertices[:, :3] / homogeneus_projected_vertices[:, [3]]
+            mesh = trimesh.Trimesh(
+                vertices=projected_vertices,
+                faces=self.faces,
+                process=False
+            )
+            self.normals = mesh.vertex_normals
+            self.vnbo.write(data=self.normals.astype(np.float32).tobytes())
 
         vao = self.ctx.vertex_array(
             program=program,
@@ -153,7 +168,7 @@ class Renderer:
             P[2][2] = (zfar + znear) / (znear - zfar)
             P[2][3] = (2 * zfar * znear) / (znear - zfar)
 
-        return (P @ V).astype(np.float32), transpose_rotation.astype(np.float32)
+        return (P @ V).astype(np.float32), (transpose_rotation).astype(np.float32)
 
     def load_shader(self, shader_name):
         with open(os.path.join(SHADERS_FOLDER, shader_name + '_vertex.glsl'), 'r') as file:
@@ -177,16 +192,16 @@ if __name__ == '__main__':
         camera_translation=result['camera']['translation'],
         camera_rotation=result['camera']['rotation']
     )
-    solid, depth = renderer.render_solid(get_depth_map=True)
-    normals = renderer.render_normals()
+    solid, depth = renderer.render_solid(get_depth_map=True, back_side=False)
+    normals = renderer.render_normals(back_side=False)
 
     dmin = np.min(depth)
     dmax = np.max(np.where(depth == np.max(depth), float('-inf'), depth))
-
+    print(dmin, dmax)
     cv2.imshow('render1', solid)
     cv2.imshow('render2', normals)
     cv2.imshow('depth', 1. - (depth - dmin) / (dmax-dmin))
-    cv2.waitKey(0)
+    cv2.waitKey(5000)
     cv2.destroyAllWindows()
     cv2.imwrite("depth.tiff", depth)
     cv2.imwrite("mask.jpg", solid)
