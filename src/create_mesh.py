@@ -51,7 +51,7 @@ class Reconstruct:
                 q1 = mid
                 q2 = mid
             vertices.append([i[0], i[1], q1])
-            vertices.append([i[0], i[1],q2])
+            vertices.append([i[0], i[1], q2])
             map_front[(i[1], i[0])] = 2 * idx
             map_back[(i[1], i[0])] = 2 * idx + 1
 
