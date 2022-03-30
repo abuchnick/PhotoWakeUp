@@ -132,6 +132,7 @@ dmypy.json
 .vscode/
 smplx_debug/
 smplx_result/
-data/
+data/images/
 lib/openpose/
-images/
+models/
+lib/
