@@ -2,6 +2,7 @@ import numpy as np
 import cv2 as cv
 import trimesh
 from inverse_warp import get_contours
+from itertools import chain
 
 
 class Reconstruct:
@@ -12,15 +13,16 @@ class Reconstruct:
         self.mask = mask
         self.inner = []
         self.boundary = []
+        self.contours = None
         self.projection_matrix_inv = np.linalg.inv(projection_matrix)
 
     def classify_points(self):
-        contours = get_contours(self.mask)
+        self.contours = get_contours(self.mask)
         for i in range(self.mask.shape[0]):
             for j in range(self.mask.shape[1]):
-                if cv.pointPolygonTest(contours, (j, i), False) == 1:
+                if cv.pointPolygonTest(self.contours, (j, i), False) == 1:
                     self.inner.append([i, j])
-                elif cv.pointPolygonTest(contours, (j, i), False) == 0:
+                elif cv.pointPolygonTest(self.contours, (j, i), False) == 0:
                     self.boundary.append([i, j])
 
     @staticmethod
@@ -37,7 +39,7 @@ class Reconstruct:
         w = self.mask.shape[1]
         map_front = {}
         map_back = {}
-        points = self.inner + self.boundary
+        # points = self.inner + self.boundary
 
         vertices = []
         faces = []
@@ -64,21 +66,21 @@ class Reconstruct:
             map_front[(i[0], i[1])] = 2 * idx + len_pts
             map_back[(i[0], i[1])] = 2 * idx + 1 + len_pts
 
-        for y, x in points:
-            if [y + 1, x + 1] in points:
-                if [y + 1, x] in points:
+        for y, x in chain(self.inner, self.boundary):
+            if cv.pointPolygonTest(self.contours, (x+1, y+1), False) >= 0:
+                if cv.pointPolygonTest(self.contours, (x, y+1), False) >= 0:
                     faces.append([map_front[y, x], map_front[y + 1, x], map_front[y + 1, x + 1]])
                     faces.append([map_back[y, x], map_back[y + 1, x + 1], map_back[y + 1, x]])
-                if [y, x + 1] in points:
+                if cv.pointPolygonTest(self.contours, (x+1, y), False) >= 0:
                     faces.append([map_front[y, x], map_front[y + 1, x + 1], map_front[y, x + 1]])
                     faces.append([map_back[y, x], map_back[y, x + 1], map_back[y + 1, x + 1]])
 
-        uv_coords = self.uv_coordinates(vertices, faces, (h, w))
+        # uv_coords = self.uv_coordinates(vertices, faces, (h, w))
 
         # need to apply uv coords
         vertices = np.array(vertices)
         faces = np.array(faces)
-        homogenous_vertices = np.c_[vertices, np.ones(self.vertices.shape[0])]
+        homogenous_vertices = np.c_[vertices, np.ones(vertices.shape[0])]
         transformed_vertices = np.einsum('ij, vj->vi', self.projection_matrix_inv, homogenous_vertices)
         transformed_vertices = transformed_vertices[:, :3] / transformed_vertices[:, 3:]
         mesh = trimesh.Trimesh(vertices=transformed_vertices, faces=faces)
@@ -88,8 +90,9 @@ class Reconstruct:
 
 
 if __name__ == "__main__":
-    pass
-    # _mesh = Reconstruct(r'C:\Users\talha\Desktop\study\semester 7\inner.jpeg',
-    #                     r'C:\Users\talha\Desktop\study\semester 7\depth.png',
-    #                     r'C:\Users\talha\Desktop\study\semester 7\depth.png')
-    # _mesh.create_mesh()
+    _mesh = Reconstruct(
+        cv.imread(r'./images/smpl_mask.jpg'),
+        cv.imread(r'./images/smpl_front.tiff', cv.IMREAD_ANYDEPTH),
+        cv.imread(r'./images/smpl_back.tiff', cv.IMREAD_ANYDEPTH),
+        np.load('projection_matrix.npy'))
+    _mesh.create_mesh()
