@@ -37,7 +37,6 @@ class Reconstruct:
         w = self.mask.shape[1]
         map_front = {}
         map_back = {}
-        qurt = []
         points = self.inner + self.boundary
 
         vertices = []
@@ -50,37 +49,42 @@ class Reconstruct:
                 mid = (q1 + q2) / 2
                 q1 = mid
                 q2 = mid
-            vertices.append([i[0], i[1], q1])
-            vertices.append([i[0], i[1], q2])
-            map_front[(i[1], i[0])] = 2 * idx
-            map_back[(i[1], i[0])] = 2 * idx + 1
+            vertices.append([i[1], i[0], q1])
+            vertices.append([i[1], i[0], q2])
+            map_front[(i[0], i[1])] = 2 * idx
+            map_back[(i[0], i[1])] = 2 * idx + 1
 
         len_pts = len(self.inner)
         for idx, i in enumerate(self.boundary):
             q1 = self.depth_front[i[0], i[1]]
             q2 = self.depth_back[i[0], i[1]]
             mid = (q1 + q2) / 2
-            vertices.append([i[0], i[1], mid])
-            vertices.append([i[0], i[1], mid])
-            map_front[(i[1], i[0])] = 2 * idx + len_pts
-            map_back[(i[1], i[0])] = 2 * idx + 1 + len_pts
+            vertices.append([i[1], i[0], mid])
+            vertices.append([i[1], i[0], mid])
+            map_front[(i[0], i[1])] = 2 * idx + len_pts
+            map_back[(i[0], i[1])] = 2 * idx + 1 + len_pts
 
-        for i, j in points:
-            if [j, i] in points and [j + 1] in points and [j + 1][i + 1] in points and [j][i + 1] in points:
-                faces.append([map_front[j, i], map_front[j + 1, i], map_front[j, i + 1]])
-                faces.append([map_front[j + 1, i], map_front[j + 1, i + 1], map_front[j, i + 1]])
-                faces.append([map_back[j, i], map_back[j, i + 1], map_back[j + 1, i]])
-                faces.append([map_back[j + 1, i], map_back[j, i + 1], map_back[j + 1, i + 1]])
+        for y, x in points:
+            if [y + 1, x + 1] in points:
+                if [y + 1, x] in points:
+                    faces.append([map_front[y, x], map_front[y + 1, x], map_front[y + 1, x + 1]])
+                    faces.append([map_back[y, x], map_back[y + 1, x + 1], map_back[y + 1, x]])
+                if [y, x + 1] in points:
+                    faces.append([map_front[y, x], map_front[y + 1, x + 1], map_front[y, x + 1]])
+                    faces.append([map_back[y, x], map_back[y, x + 1], map_back[y + 1, x + 1]])
 
         uv_coords = self.uv_coordinates(vertices, faces, (h, w))
 
         # need to apply uv coords
-        homogenous_vertices = np.c_[vertices, np.ones(self.projection_matrix_inv.shape[0])]
+        vertices = np.array(vertices)
+        faces = np.array(faces)
+        homogenous_vertices = np.c_[vertices, np.ones(self.vertices.shape[0])]
         transformed_vertices = np.einsum('ij, vj->vi', self.projection_matrix_inv, homogenous_vertices)
+        transformed_vertices = transformed_vertices[:, :3] / transformed_vertices[:, 3:]
         mesh = trimesh.Trimesh(vertices=transformed_vertices, faces=faces)
         mesh.show()
 
-        return np.array(vertices), np.array(faces)
+        return transformed_vertices, faces
 
 
 if __name__ == "__main__":
