@@ -79,6 +79,7 @@ class Reconstruct:
 
         # need to apply uv coords
         vertices = np.array(vertices)
+        vertices = vertices / np.array([w/2, h/2, 1]) - np.array([1, 1, 0])
         faces = np.array(faces)
         homogenous_vertices = np.c_[vertices, np.ones(vertices.shape[0])]
         transformed_vertices = np.einsum('ij, vj->vi', self.projection_matrix_inv, homogenous_vertices)

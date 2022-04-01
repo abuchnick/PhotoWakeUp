@@ -139,6 +139,46 @@ class Renderer:
 
         return render
 
+    def render_skinning_map(self, skinning_map) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+        program = self.load_shader('skinning_map')
+
+        program['projection'].write(
+            (self.projection_matrix).tobytes('F')
+        )
+
+        skinning_weights_buffer = self.ctx.buffer(reserve=skinning_map.shape[0]*4)
+
+        vao = self.ctx.vertex_array(
+            program=program,
+            content=[
+                (self.vbo, '3f4', 'vertex'),
+                (skinning_weights_buffer, 'f4', 'weight')
+            ],
+            index_buffer=self.ibo,
+            index_element_size=2
+        )
+
+        fbo = self.ctx.framebuffer(
+            color_attachments=[self.ctx.renderbuffer(size=tuple(reversed(self.img_shape)), components=1, dtype='f4')],
+            depth_attachment=self.ctx.depth_renderbuffer(size=tuple(reversed(self.img_shape)))
+        )
+        fbo.use()
+        skinning_map_per_joint = []
+        for i in range(22):  # we only use the first 22 weight since we dont animate face and hands
+            fbo.clear()
+            skinning_weights_buffer.write(skinning_map[:, i].astype(np.float32).tobytes())
+            vao.render()
+
+            render = np.flip(np.frombuffer(
+                fbo.read(components=1, dtype='f4'), dtype=np.float32).reshape(*self.img_shape, 1), axis=0)
+            skinning_map_per_joint.append(render)
+
+        fbo.release()
+        vao.release()
+        skinning_weights_buffer.release()
+        program.release()
+        return np.concatenate(skinning_map_per_joint, axis=-1)
+
     @staticmethod
     def getProjectionMatrix(img_shape, camera_translation, camera_rotation, camera_center, znear, zfar, focal_length):
         camera_translation = np.squeeze(camera_translation)
@@ -192,17 +232,31 @@ if __name__ == '__main__':
         camera_translation=result['camera']['translation'],
         camera_rotation=result['camera']['rotation']
     )
-    solid, depth = renderer.render_solid(get_depth_map=True, back_side=False)
-    normals = renderer.render_normals(back_side=False)
 
-    dmin = np.min(depth)
-    dmax = np.max(np.where(depth == np.max(depth), float('-inf'), depth))
-    print(dmin, dmax)
-    cv2.imshow('render1', solid)
-    cv2.imshow('render2', normals)
-    cv2.imshow('depth', 1. - (depth - dmin) / (dmax-dmin))
-    cv2.waitKey(5000)
-    cv2.destroyAllWindows()
-    cv2.imwrite("depth.tiff", depth)
-    cv2.imwrite("mask.jpg", solid)
-    cv2.imwrite("normals.jpg", normals)
+    P = renderer.projection_matrix
+    v = result['mesh']['vertices']
+    vh = np.c_[v, np.ones(v.shape[0])]
+    vph = np.einsum('ij,vj->vi', P, vh)
+    vp = vph[:, :3] / vph[:, [3]]
+    print(f"min = {np.min(vp, axis=0)}    max = {np.max(vp, axis=0)}")
+    # solid, depth = renderer.render_solid(get_depth_map=True, back_side=False)
+    # normals = renderer.render_normals(back_side=False)
+    # skinning_map = renderer.render_skinning_map(result['mesh']['skinning_map'])
+
+    # for i in range(skinning_map.shape[-1]):
+    #     cv2.imshow('skinning_map', skinning_map[:, :, i])
+    #     if cv2.waitKey(200) != -1:
+    #         break
+    # cv2.destroyAllWindows()
+
+    # dmin = np.min(depth)
+    # dmax = np.max(np.where(depth == np.max(depth), float('-inf'), depth))
+    # print(dmin, dmax)
+    # cv2.imshow('render1', solid)
+    # cv2.imshow('render2', normals)
+    # cv2.imshow('depth', 1. - (depth - dmin) / (dmax-dmin))
+    # cv2.waitKey(5000)
+    # cv2.destroyAllWindows()
+    # cv2.imwrite("depth.tiff", depth)
+    # cv2.imwrite("mask.jpg", solid)
+    # cv2.imwrite("normals.jpg", normals)
