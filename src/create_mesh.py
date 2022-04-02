@@ -25,13 +25,6 @@ class Reconstruct:
                 elif cv.pointPolygonTest(self.contours, (j, i), False) == 0:
                     self.boundary.append([i, j])
 
-    @staticmethod
-    def uv_coordinates(_vertices, _faces, _img_size):
-        img_width = _img_size[1]
-        img_height = _img_size[0]
-        #normalized_xy_coords = _vertices[:, :2] / np.array([img_width, img_height])
-        return np.take(a=normalized_xy_coords, indices=_faces, axis=0)  # shape(m, 3, 2)
-
     def create_mesh(self):
 
         self.classify_points()
