@@ -29,10 +29,11 @@ class Reconstruct:
     def uv_coordinates(_vertices, _faces, _img_size):
         img_width = _img_size[1]
         img_height = _img_size[0]
-        normalized_xy_coords = _vertices[:, :2] / np.array([img_width, img_height])
+        #normalized_xy_coords = _vertices[:, :2] / np.array([img_width, img_height])
         return np.take(a=normalized_xy_coords, indices=_faces, axis=0)  # shape(m, 3, 2)
 
     def create_mesh(self):
+
         self.classify_points()
 
         h = self.mask.shape[0]
@@ -81,34 +82,21 @@ class Reconstruct:
                     faces.append([map_front[(y, x)], map_front[(y, x + 1)], map_front[(y + 1, x + 1)]])
                     faces.append([map_back[(y, x)], map_back[(y + 1, x + 1)], map_back[(y, x + 1)]])
 
-        # uv_coords = self.uv_coordinates(vertices, faces, (h, w))
-
         # need to apply uv coords
+        faces = np.array(faces)
         vertices = np.array(vertices)
         vertices = vertices / np.array([w/2, h/2, 1]) - np.array([1, 1, 0])
-        faces = np.array(faces)
+
+        uv_coords = np.take(a=vertices, indices=faces, axis=0)
+
         homogenous_vertices = np.c_[vertices, np.ones(vertices.shape[0])]
         transformed_vertices = np.einsum('ij, vj->vi', self.projection_matrix_inv, homogenous_vertices)
-        # print(np.any(transformed_vertices[:, 3:] == 0))
-        # print(np.any(transformed_vertices[:, 3:] == np.Inf))
-        # print(np.any(transformed_vertices[:, 3:] == np.NAN))
-        # print(np.any(transformed_vertices[:, 3:] == np.NINF))
-        #
-        # print(np.any(transformed_vertices[:, :3] == 0))
-        # print(np.any(transformed_vertices[:, :3] == np.Inf))
-        # print(np.any(transformed_vertices[:, :3] == np.NAN))
-        # print(np.any(transformed_vertices[:, :3] == np.NINF))
-        #
-        # print(np.any(transformed_vertices == 0))
-        # print(np.any(transformed_vertices == np.Inf))
-        # print(np.any(transformed_vertices == np.NAN))
-        # print(np.any(transformed_vertices == np.NINF))
 
         transformed_vertices = transformed_vertices[:, :3] / transformed_vertices[:, 3:]
         mesh = trimesh.Trimesh(vertices=transformed_vertices, faces=faces)
         mesh.show()
 
-        return transformed_vertices, faces
+        return transformed_vertices, faces, uv_coords
 
 
 if __name__ == "__main__":
