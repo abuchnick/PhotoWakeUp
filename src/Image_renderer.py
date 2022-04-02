@@ -13,6 +13,10 @@ import os
 SHADERS_FOLDER = os.path.realpath(os.path.join(__file__, '../shaders'))
 
 
+def map_ranges(value, from_range, to_range):
+    return (value - from_range[0]) * ((to_range[1] - to_range[0]) / (from_range[1] - from_range[0])) + to_range[0]
+
+
 class Renderer:
     def __init__(
         self,
@@ -31,6 +35,7 @@ class Renderer:
         self.vertices = vertices
         self.faces = faces
         self.normals = None
+        self.normal_depth_rescale = None
         self.znear = znear
         self.zfar = zfar
         self.img_shape = img_shape
@@ -106,15 +111,20 @@ class Renderer:
 
         if self.normals is None:
             N = self.vertices.shape[0]
+            h, w = self.img_shape
             homogeneus_vertices = np.c_[self.vertices, np.ones(N)]
             homogeneus_projected_vertices = np.einsum('ij,vj->vi', P, homogeneus_vertices)
             projected_vertices = homogeneus_projected_vertices[:, :3] / homogeneus_projected_vertices[:, [3]]
+            zmin, zmax = projected_vertices[:, 2].min(), projected_vertices[:, 2].max()
+            self.normal_depth_rescale = np.array([[zmin, zmax], [0., 500.]])
+            # remaping x,y to their pixel values in image (for integration) and z to the range (0,500) for numerical stability
+            projected_vertices = (projected_vertices + np.array([1., 1., -zmin])) * np.array([w / 2., h / 2., 500./(zmax-zmin)])
             mesh = trimesh.Trimesh(
                 vertices=projected_vertices,
                 faces=self.faces,
                 process=False
             )
-            self.normals = mesh.vertex_normals
+            self.normals = mesh.vertex_normals * np.array([1, -1, 1])
             self.vnbo.write(data=self.normals.astype(np.float32).tobytes())
 
         vao = self.ctx.vertex_array(
@@ -127,17 +137,22 @@ class Renderer:
             index_element_size=2
         )
 
-        self.fbo.use()
-        self.fbo.clear()
+        fbo = self.ctx.framebuffer(
+            color_attachments=[self.ctx.renderbuffer(size=tuple(reversed(self.img_shape)), components=3, dtype='f4')],
+            depth_attachment=self.ctx.depth_renderbuffer(size=tuple(reversed(self.img_shape)))
+        )
+        fbo.use()
+        fbo.clear()
         vao.render()
 
         render = np.flip(np.frombuffer(
-            self.fbo.read(), dtype=np.uint8).reshape(*self.img_shape,  3), axis=[0, 2])
+            fbo.read(dtype='f4'), dtype=np.float32).reshape(*self.img_shape,  3), axis=0)
 
+        fbo.release()
         vao.release()
         program.release()
 
-        return render
+        return render, self.normal_depth_rescale
 
     def render_skinning_map(self, skinning_map) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         program = self.load_shader('skinning_map')
@@ -233,14 +248,9 @@ if __name__ == '__main__':
         camera_rotation=result['camera']['rotation']
     )
 
-    P = renderer.projection_matrix
-    v = result['mesh']['vertices']
-    vh = np.c_[v, np.ones(v.shape[0])]
-    vph = np.einsum('ij,vj->vi', P, vh)
-    vp = vph[:, :3] / vph[:, [3]]
-    print(f"min = {np.min(vp, axis=0)}    max = {np.max(vp, axis=0)}")
-    # solid, depth = renderer.render_solid(get_depth_map=True, back_side=False)
-    # normals = renderer.render_normals(back_side=False)
+    solid, depth = renderer.render_solid(get_depth_map=True, back_side=False)
+    normals, rescale = renderer.render_normals(back_side=False)
+    print(f"normals rescaling: {rescale[0]} -> {rescale[1]}")
     # skinning_map = renderer.render_skinning_map(result['mesh']['skinning_map'])
 
     # for i in range(skinning_map.shape[-1]):
@@ -249,14 +259,14 @@ if __name__ == '__main__':
     #         break
     # cv2.destroyAllWindows()
 
-    # dmin = np.min(depth)
-    # dmax = np.max(np.where(depth == np.max(depth), float('-inf'), depth))
+    dmin = np.min(depth)
+    dmax = np.max(np.where(depth == np.max(depth), float('-inf'), depth))
     # print(dmin, dmax)
     # cv2.imshow('render1', solid)
-    # cv2.imshow('render2', normals)
+    cv2.imshow('render2', (np.flip(normals, axis=2)+1.0)/2)
     # cv2.imshow('depth', 1. - (depth - dmin) / (dmax-dmin))
-    # cv2.waitKey(5000)
-    # cv2.destroyAllWindows()
-    # cv2.imwrite("depth.tiff", depth)
-    # cv2.imwrite("mask.jpg", solid)
-    # cv2.imwrite("normals.jpg", normals)
+    cv2.waitKey(5000)
+    cv2.destroyAllWindows()
+    cv2.imwrite("depth.tiff", depth)
+    cv2.imwrite("mask.jpg", solid)
+    np.savez('normals.npz', normals=normals, rescale=rescale)

@@ -133,6 +133,14 @@ dmypy.json
 smplx_debug/
 smplx_result/
 data/images/
+data/*
 lib/openpose/
 models/
 lib/
+*.tiff
+*.jpg
+*.jpeg
+*.png
+*.pkl
+*.npy
+*.npz

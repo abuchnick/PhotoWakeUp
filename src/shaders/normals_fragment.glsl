@@ -6,5 +6,5 @@ out vec3 fragColor;
 
 void main()
 {
-    fragColor = (_normal + 1.0) * 0.5;
+    fragColor = _normal;
 }

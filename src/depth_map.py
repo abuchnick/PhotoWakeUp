@@ -1,138 +1,107 @@
 import numpy as np
-import cv2 as cv
-from scipy import sparse
-import scipy.sparse.linalg
-import timeit
-from inverse_warp import get_contours
+import scipy.sparse as ssp
+from scipy.sparse.linalg import lsqr
+import cv2
+import os
+from Image_renderer import map_ranges
 
 
 class DepthMap:
+    def __init__(self, mask, depth_map_coarse, normal_map, depth_rescale=((0, 1), (0, 1))):
+        self.depth_map_coarse = np.where(
+            depth_map_coarse == float('inf'),
+            0.,
+            map_ranges(depth_map_coarse, depth_rescale[0], depth_rescale[1]))
+        self.depth_rescale = depth_rescale
+        self.normals = normal_map
+        if len(mask.shape) == 3:
+            mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+        self.mask = mask
 
-    def __init__(self, mask, depth_map_coarse, normal_map):
-        self.depth_map_coarse = cv.imread(depth_map_coarse)
-        self.normal_map = cv.imread(normal_map)
-        self.mask = cv.imread(mask)
         self.inner_pts = []
         self.boundary_pts = []
-        self.depth_map_filled = None
+        self.thresholded_image = None
+        self.b = None
+        self.parameter_matrix = None
 
-    def classify_points(self):
-        get_contours(self.mask)
-        for i in range(self.depth_map_coarse.shape[0]):
-            for j in range(self.depth_map_coarse.shape[1]):
-                if cv.pointPolygonTest(contours, (j, i), False) == 1:
+    def constructEquationsMatrix(self):
+        def z(x, y):
+            return y * self.depth_map_coarse.shape[1] + x
+
+        num_equ = len(self.inner_pts) * 2 + len(self.boundary_pts) * 3
+        P = ssp.lil_array((num_equ, self.depth_map_coarse.size))
+        self.b = np.zeros(num_equ)
+        i = 0
+        for x, y in self.inner_pts:
+            nx, ny, nz = self.normals[y, x]
+            if True:
+                P[i, z(x, y)] = -nz
+                P[i, z(x + 1, y)] = nz
+                self.b[i] = nx
+                i += 1
+                P[i, z(x, y)] = -nz
+                P[i, z(x, y + 1)] = nz
+                self.b[i] = ny
+                i += 1
+
+        for x, y in self.boundary_pts:
+            nx, ny, nz = self.normals[y, x]
+            P[i, z(x, y)] = 100.
+            self.b[i] = 100. * self.depth_map_coarse[y, x]
+            i += 1
+            if self.thresholded_image[y, x + 1] > 0:
+                P[i, z(x, y)] = -nz
+                P[i, z(x + 1, y)] = nz
+                self.b[i] = nx
+                i += 1
+            if self.thresholded_image[y + 1, x] > 0:
+                P[i, z(x, y)] = -nz
+                P[i, z(x, y + 1)] = nz
+                self.b[i] = ny
+                i += 1
+        self.parameter_matrix = P
+        print(f"{i=}")
+
+    def classifyPoints(self):
+        _, self.thresholded_image = cv2.threshold(self.mask, 100, 255, cv2.THRESH_BINARY)  # each value below 100 will become 0, and above will become 255
+        contours, _ = cv2.findContours(self.thresholded_image, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)  # retrieve all points in contour(don't approximate) and save full hirarchy
+        contours = np.array(contours[0]).squeeze(1)  # this will take the contours of the first object only. cast for nd-array since the output is a list, and squeeze dim 1 since its redundant
+
+        for i in range(self.depth_map_coarse.shape[1]):
+            for j in range(self.depth_map_coarse.shape[0]):
+                if cv2.pointPolygonTest(contours, (i, j), False) == 1:
                     self.inner_pts.append([i, j])
-                elif cv.pointPolygonTest(contours, (j, i), False) == 0:
+                elif cv2.pointPolygonTest(contours, (i, j), False) == 0:
                     self.boundary_pts.append([i, j])
-                    for k in range(0, 3):
-                        self.depth_map_filled[i, j, k] = self.depth_map_coarse[i, j, k]
 
-    def warp_depth_map(self):
-
-        self.depth_map_filled = np.zeros(self.depth_map_coarse.shape, dtype=np.float32)
-
-        self.classify_points()
-
-        h = self.depth_map_coarse.shape[0]
-        w = self.depth_map_coarse.shape[1]
-
-        normal_decode = (np.array(self.normal_map).astype(np.float32) / 127.5) - 1.0
-
-        points = self.inner_pts + self.boundary_pts
-
-        A = sparse.lil_array((4 * len(points) + len(self.boundary_pts), h * w))
-        b = np.zeros(4 * len(points) + len(self.boundary_pts))
-        inx = 0
-        for i in self.inner_pts:
-            if normal_decode[i[0], i[1]][2] < -0.15 or normal_decode[i[0], i[1]][2] > 0.15:
-                A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][2]
-                A[inx, i[0] * w + i[1] + 1] = normal_decode[i[0], i[1]][2]
-                b[inx] = normal_decode[i[0], i[1]][0]
-                inx += 1
-
-                A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][2]
-                A[inx, (i[0] + 1) * w + i[1]] = normal_decode[i[0], i[1]][2]
-                b[inx] = normal_decode[i[0], i[1]][1]
-                inx += 1
-
-                A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][2]
-                A[inx, i[0] * w + i[1] - 1] = normal_decode[i[0], i[1]][2]
-                b[inx] = normal_decode[i[0], i[1]][0]
-                inx += 1
-
-                A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][2]
-                A[inx, (i[0] - 1) * w + i[1]] = normal_decode[i[0], i[1]][2]
-                b[inx] = normal_decode[i[0], i[1]][1]
-                inx += 1
-            else:
-                A[inx, i[0] * w + i[1]] = normal_decode[i[0], i[1]][1] - normal_decode[i[0], i[1]][0]
-                A[inx, i[0] * w + i[1] + 1] = -1 * normal_decode[i[0], i[1]][1]
-                A[inx, (i[0] + 1) * w + i[1]] = normal_decode[i[0], i[1]][0]
-                b[inx] = 0
-                inx += 1
-                A[inx, i[0] * w + i[1]] = normal_decode[i[0], i[1]][1] - normal_decode[i[0], i[1]][0]
-                A[inx, i[0] * w + i[1] - 1] = -1 * normal_decode[i[0], i[1]][1]
-                A[inx, (i[0] + 1) * w + i[1]] = normal_decode[i[0], i[1]][0]
-                b[inx] = 0
-                inx += 1
-
-        for i in self.boundary_pts:
-            A[inx, i[0] * w + i[1]] = 1
-            b[inx] = self.depth_map_coarse[i[0], i[1]][0]
-            inx += 1
-            if normal_decode[i[0], i[1]][2] < -0.05 or normal_decode[i[0], i[1]][2] > 0.05:
-                if [i[0], i[1] + 1] in points:
-                    A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][2]
-                    A[inx, i[0] * w + i[1] + 1] = normal_decode[i[0], i[1]][2]
-                    b[inx] = normal_decode[i[0], i[1]][0]
-                    inx += 1
-                if [i[0] + 1, i[1]] in points:
-                    A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][2]
-                    A[inx, (i[0] + 1) * w + i[1]] = normal_decode[i[0], i[1]][2]
-                    b[inx] = normal_decode[i[0], i[1]][1]
-                    inx += 1
-                if [i[0], i[1] - 1] in points:
-                    A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][2]
-                    A[inx, i[0] * w + i[1] - 1] = normal_decode[i[0], i[1]][2]
-                    b[inx] = normal_decode[i[0], i[1]][0]
-                    inx += 1
-                if [i[0] - 1, i[1]] in points:
-                    A[inx, i[0] * w + i[1]] = -1 * normal_decode[i[0], i[1]][2]
-                    A[inx, (i[0] - 1) * w + i[1]] = normal_decode[i[0], i[1]][2]
-                    b[inx] = normal_decode[i[0], i[1]][1]
-                    inx += 1
-            else:
-                if [i[0], i[1] + 1] in points and [i[0] + 1, i[1]] in points:
-                    A[inx, i[0] * w + i[1]] = normal_decode[i[0], i[1]][1] - normal_decode[i[0], i[1]][0]
-                    A[inx, i[0] * w + i[1] + 1] = -1 * normal_decode[i[0], i[1]][1]
-                    A[inx, (i[0] + 1) * w + i[1]] = normal_decode[i[0], i[1]][0]
-                    b[inx] = 0
-                    inx += 1
-                if [i[0], i[1] - 1] in points and [i[0] - 1, i[1]] in points:
-                    A[inx, i[0] * w + i[1]] = normal_decode[i[0], i[1]][1] - normal_decode[i[0], i[1]][0]
-                    A[inx, i[0] * w + i[1] - 1] = -1 * normal_decode[i[0], i[1]][1]
-                    A[inx, (i[0] + 1) * w + i[1]] = normal_decode[i[0], i[1]][0]
-                    b[inx] = 0
-                    inx += 1
-
-        print("calculated values")
-
-        sol = sparse.linalg.lsqr(A, b)
-
-        print("finished matrix")
-        for i in self.inner_pts:
-            val = sol[0][i[0] * w + i[1]]
-            for j in range(0, 3):
-                self.depth_map_filled[i[0], i[1], j] = val
-
-        print("finished depth map")
-
-        cv.imwrite('depth_map.jpeg', self.depth_map_filled)
+    def solve_depth(self):
+        self.classifyPoints()
+        self.constructEquationsMatrix()
+        depth = lsqr(self.parameter_matrix.tocsr(), self.b,
+                     x0=np.ravel(self.depth_map_coarse),
+                     show=True, iter_lim=10000)[0]
+        return map_ranges(depth.reshape(self.depth_map_coarse.shape), self.depth_rescale[1], self.depth_rescale[0])
 
 
 if __name__ == "__main__":
-    depth_map = DepthMap(r'C:\Users\talha\Desktop\study\semester 7\inner.jpeg',
-                         r'C:\Users\talha\Desktop\study\semester 7\depth.png',
-                         r'C:\Users\talha\Desktop\study\semester 7\normals.png')
+    root = os.path.dirname(os.path.dirname(__file__))
+    mask = cv2.imread(os.path.join(root, 'mask.jpg'))
+    normalsz = np.load(os.path.join(root, 'normals.npz'))
+    normals, rescale = normalsz['normals'], normalsz['rescale']
+    depth = cv2.imread(os.path.join(root, 'depth.tiff'), cv2.IMREAD_ANYDEPTH)
+    depth_map_solver = DepthMap(
+        mask=mask,
+        depth_map_coarse=depth,
+        normal_map=normals,
+        depth_rescale=rescale
+    )
 
-    depth_map.warp_depth_map()
+    new_depth = np.array(depth_map_solver.solve_depth())
+    # cv2.imwrite('d.tiff', new_depth)
+    dmin = np.min(np.where(new_depth == np.min(
+        new_depth), float('inf'), new_depth))
+    dmax = np.max(np.where(new_depth == np.max(
+        new_depth), float('-inf'), new_depth))
+    print(dmin, dmax)
+    cv2.imshow('depth', 1. - (new_depth - dmin) / (dmax-dmin))  # 1. - (new_depth - dmin) / (dmax-dmin))
+    cv2.waitKey(0)
