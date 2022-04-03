@@ -54,7 +54,7 @@ class Mask:
         persons = [
             {'mask': predictions['masks'][i], 'box': predictions['boxes'][i]}
             for i in range(num_of_detections)
-            if predictions['labels'][i] == 1 and predictions['scores'][i] > self.detect_tresh
+            if predictions['labels'][i] == 1 and predictions['scores'][i] > self.detect_thresh
         ]
         areas = list(map(lambda person: (
                                             torch.abs(person['box'][2] - person['box'][0])) * (
@@ -84,8 +84,8 @@ class Mask:
 
 if __name__ == "__main__":
     mask = Mask(
-        img_path=r"C:\Users\talha\Desktop\study\semester 7\steph.png",
-        save_path=r"C:\Users\talha\Desktop\study\semester 7"
+        img_path=r".\\images\\goku.jpg",
+        save_path=r"."
     )
     mask.create_mask()
 

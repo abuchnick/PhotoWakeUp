@@ -53,7 +53,7 @@ class SmplifyX:
         try:
             # change working directory to project root
             os.chdir(PROJECT_ROOT)
-            self.run()
+            return self.run()
         finally:
             os.chdir(cwd)
 
@@ -310,8 +310,12 @@ class SmplifyX:
         # convert to OpenGL compatible axis
         vertices = vertices  @ np.diag([1, -1, -1])
         joints = joints  @ np.diag([1, -1, -1])
-        faces = model.faces.detach().cpu().numpy().squeeze()
-        skinning_map = model.lbs_weights.detach().cpu().numpy().squeeze()
+        faces = model.faces
+        if isinstance(faces, torch.Tensor):
+            faces = faces.detach().cpu().numpy().squeeze()
+        skinning_map = model.lbs_weights
+        if isinstance(skinning_map, torch.Tensor):
+            skinning_map = skinning_map.detach().cpu().numpy().squeeze()
         return dict(vertices=vertices, faces=faces, skinning_map=skinning_map, joints=joints)
 
 

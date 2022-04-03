@@ -1,5 +1,4 @@
 from concurrent.futures import process
-from io import open_code
 import cv2
 import moderngl as gl
 import numpy as np
@@ -238,12 +237,12 @@ class Renderer:
 
 if __name__ == '__main__':
     with open('result.pkl', 'rb') as file:
-        result = pkl.load(file)['man'][0]
+        result = pkl.load(file)['goku'][0]
     vertices = result['mesh']['vertices']
     renderer = Renderer(
         vertices=result['mesh']['vertices'],
         faces=result['mesh']['faces'],
-        img_shape=(900, 600),
+        img_shape=(1200, 1000),
         camera_translation=result['camera']['translation'],
         camera_rotation=result['camera']['rotation']
     )
@@ -262,9 +261,9 @@ if __name__ == '__main__':
     dmin = np.min(depth)
     dmax = np.max(np.where(depth == np.max(depth), float('-inf'), depth))
     # print(dmin, dmax)
-    # cv2.imshow('render1', solid)
+    cv2.imshow('render1', solid)
     cv2.imshow('render2', (np.flip(normals, axis=2)+1.0)/2)
-    # cv2.imshow('depth', 1. - (depth - dmin) / (dmax-dmin))
+    cv2.imshow('depth', 1. - (depth - dmin) / (dmax-dmin))
     cv2.waitKey(5000)
     cv2.destroyAllWindows()
     cv2.imwrite("depth.tiff", depth)

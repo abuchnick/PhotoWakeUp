@@ -5,7 +5,7 @@ from os.path import join
 import matplotlib.pyplot as plt
 from itertools import chain
 
-IMAGES_DIR = join(getcwd(), "..", "images")
+IMAGES_DIR = join(__file__, "..", "..", "images")
 PATH_TO_ORG_MASK = join(IMAGES_DIR, "refined_mask.png")  # TODO still doesn't have this file
 # PATH_TO_ORG_MASK = join(IMAGES_DIR, "org_mask (Custom).jpeg")
 PATH_TO_SMPL_MASK = join(IMAGES_DIR, "smpl_mask.jpeg")
