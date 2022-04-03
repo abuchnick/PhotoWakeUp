@@ -33,14 +33,14 @@ if __name__ == '__main__':
                             configuration["inputFileName"])
     input_image = cv2.imread(input_image_path)
 
-    mask = Mask(img_path=input_image_path,  #TODO fix pass here the input image instead of the path - happens because of inner img_to_tensor
+    mask = Mask(img_path=input_image_path,  # TODO fix pass here the input image instead of the path - happens because of inner img_to_tensor
                 save_path=images_dir_path)
     segmentation = mask.create_mask()  # here refined.mask.png is created in images_temp dir
 
     pose_estimator = PoseEstimator()
-    datum_name = ".".join(os.path.basename(input_image_path).split(".")[0:-1])
-    pose_estimator(img_to_process=input_image,
-                   datum_name=datum_name)  # how do we use pose estimation outputs for smplx?
+    file_name = ".".join(os.path.basename(input_image_path).split(".")[0:-1])
+    pose_estimator(img=input_image,
+                   name=file_name)  # how do we use pose estimation outputs for smplx?
 
     img_name = os.path.splitext(configuration["inputFileName"])[0]
     smplifyx_object = SmplifyX()

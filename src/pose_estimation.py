@@ -2,9 +2,9 @@
 import os
 import sys
 import cv2
-from os.path import join, realpath
+from os.path import join, realpath, dirname
 
-PROJECT_ROOT = realpath(join(__file__, ".."))
+PROJECT_ROOT = realpath(dirname(dirname(__file__)))
 OPENPOSE_DIR_PATH = realpath(join(PROJECT_ROOT, "lib", "openpose"))
 
 try:
@@ -12,8 +12,8 @@ try:
                          'build', 'python', 'openpose', 'Release'))
 
     os.environ['PATH'] = os.environ['PATH'] + \
-                         ';' + join(OPENPOSE_DIR_PATH, 'build', 'bin') + ';' + \
-                         join(OPENPOSE_DIR_PATH, 'build', 'x64', 'Release')
+        ';' + join(OPENPOSE_DIR_PATH, 'build', 'bin') + ';' + \
+        join(OPENPOSE_DIR_PATH, 'build', 'x64', 'Release')
     import pyopenpose as op
 except ImportError:
     print("Couldn't load the OpenPose library")
@@ -34,7 +34,7 @@ class PoseEstimator:
         if params_override is not None:
             self.params.update(params_override)
 
-    def __call__(self, image_to_process, datum_name):
+    def __call__(self, img, name):
         cwd = os.getcwd()
         try:
             os.chdir(OPENPOSE_DIR_PATH)
@@ -43,8 +43,8 @@ class PoseEstimator:
             op_wrapper.start()
 
             datum = op.Datum()
-            datum.cvInputData = image_to_process
-            datum.name = datum_name
+            datum.cvInputData = img
+            datum.name = name
             op_wrapper.emplaceAndPop(op.VectorDatum([datum]))
         finally:
             op_wrapper.stop()
@@ -53,4 +53,4 @@ class PoseEstimator:
 
 if __name__ == '__main__':
     pose_estimator = PoseEstimator()
-    pose_estimator(img_path=join(PROJECT_ROOT, "data", "images_temp", "man.jpg"))
+    pose_estimator(img=cv2.imread(join(PROJECT_ROOT, "data", "images", "goku.jpg")), name="goku")
