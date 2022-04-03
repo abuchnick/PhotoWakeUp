@@ -296,7 +296,7 @@ class SmplifyX:
             model = smplx.create(**model_params)
         model = model.to(self.device)
 
-        body_pose = torch.tensor(params['body_pose'])
+        body_pose = torch.tensor(params['body_pose'], device=self.device)
         if self.configuration['use_vposer']:
             vposer, _ = load_vposer(
                 self.configuration['vposer_ckpt'], vp_model='snapshot')

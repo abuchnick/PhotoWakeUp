@@ -53,4 +53,4 @@ class PoseEstimator:
 
 if __name__ == '__main__':
     pose_estimator = PoseEstimator()
-    pose_estimator(img=cv2.imread(join(PROJECT_ROOT, "data", "images", "goku.jpg")), name="goku")
+    pose_estimator(img=cv2.imread(join(PROJECT_ROOT, "data", "images_temp", "goku.jpg")), name="goku")
