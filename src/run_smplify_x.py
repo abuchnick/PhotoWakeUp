@@ -27,7 +27,7 @@ import pickle
 
 torch.backends.cudnn.enabled = False
 
-PROJECT_ROOT = realpath(join(__file__, ".."))
+PROJECT_ROOT = osp.realpath(osp.dirname(osp.dirname(__file__)))
 
 class SmplifyX:
     def __init__(self, conf_file: str = osp.join(PROJECT_ROOT, "smplx_conf.yaml"), conf_override: Optional[dict] = None):
@@ -52,7 +52,7 @@ class SmplifyX:
         cwd = os.getcwd()
         try:
             # change working directory to project root
-            os.chdir(os.path.abspath(os.path.join(__file__, '..')))
+            os.chdir(PROJECT_ROOT)
             self.run()
         finally:
             os.chdir(cwd)
