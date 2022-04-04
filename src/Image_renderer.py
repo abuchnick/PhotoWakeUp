@@ -26,8 +26,8 @@ class Renderer:
         camera_rotation: np.ndarray,  # (3, 3)
         camera_center=(0., 0.),  # (2,)
         focal_length=5000.0,
-        znear=5.0,
-        zfar=20.0
+        znear=1.0,
+        zfar=50.0
     ):
         self.ctx = gl.create_context(standalone=True)
         self.ctx.enable(gl.DEPTH_TEST)
@@ -95,7 +95,7 @@ class Renderer:
 
         return render
 
-    def render_normals(self, back_side=False) -> np.ndarray:
+    def render_normals(self, back_side=False) -> Tuple[np.ndarray, np.ndarray]:
         program = self.load_shader('normals')
 
         P = self.projection_matrix
@@ -153,7 +153,7 @@ class Renderer:
 
         return render, self.normal_depth_rescale
 
-    def render_skinning_map(self, skinning_map) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+    def render_skinning_map(self, skinning_map) -> np.ndarray:
         program = self.load_shader('skinning_map')
 
         program['projection'].write(
