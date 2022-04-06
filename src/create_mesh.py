@@ -113,9 +113,9 @@ class Reconstruct:
         transformed_vertices = np.einsum('ij, vj->vi', self.projection_matrix_inv, homogenous_vertices)
 
         transformed_vertices = transformed_vertices[:, :3] / transformed_vertices[:, 3:]
-        mesh = trimesh.Trimesh(vertices=transformed_vertices, faces=faces)
+        #mesh = trimesh.Trimesh(vertices=transformed_vertices, faces=faces)
         # trimesh.smoothing.filter_laplacian(mesh)
-        mesh.show()
+        #mesh.show()
 
         return transformed_vertices, faces, uv_coords
 
