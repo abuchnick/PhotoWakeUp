@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 
 from mask import Mask
-from warp import Warp
+from inverse_warp import Warp
 from pose_estimation import PoseEstimator
 from run_smplify_x import SmplifyX
 from Image_renderer import Renderer
@@ -60,6 +60,7 @@ if __name__ == '__main__':
     _, smpl_depth_back = renderer.render_solid(get_depth_map=True, back_side=True)
     smpl_normals_front, rescale_front = renderer.render_normals()
     smpl_normals_back, rescale_back = renderer.render_normals(back_side=True)
+    skinning_map = renderer.render_skinning_map(result['mesh']['skinning_map'])
 
     cv2.imwrite("smpl_depth_front.tiff", smpl_depth_front)
     cv2.imwrite("smpl_back_depth.tiff", smpl_depth_back)
@@ -73,11 +74,11 @@ if __name__ == '__main__':
     warp_func = inverse_warp(refined_mask_img=segmentation, smpl_mask_img=smpl_mask)
     warp = Warp(warp_func)
 
-    projected_normals_front = warp(warp_fn=warp_func, map_img=smpl_normals_front)
-    projected_normals_back = warp(warp_fn=warp_func, map_img=smpl_normals_back)
+    projected_normals_front = warp(map_img=smpl_normals_front)
+    projected_normals_back = warp(map_img=smpl_normals_back)
 
     projected_depth_front = warp(map_img=smpl_depth_front)
-    projected_depth_back = warp(warp_fn=warp_func, map_img=smpl_depth_back)
+    projected_depth_back = warp(map_img=smpl_depth_back)
 
 
     # Depth map integration
