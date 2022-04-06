@@ -8,6 +8,7 @@ import pickle as pkl
 import import_smplifyx as smplifyx
 import trimesh
 import os
+from camera import Camera
 
 SHADERS_FOLDER = os.path.realpath(os.path.join(__file__, '../shaders'))
 
@@ -24,7 +25,7 @@ class Renderer:
         img_shape: Tuple[int, int],  # (HxW)
         camera_translation: np.ndarray,  # (3,)
         camera_rotation: np.ndarray,  # (3, 3)
-        camera_center=(0., 0.),  # (2,)
+        # camera_center=(0., 0.),  # (2,)
         focal_length=5000.0,
         znear=1.0,
         zfar=50.0
@@ -38,8 +39,16 @@ class Renderer:
         self.znear = znear
         self.zfar = zfar
         self.img_shape = img_shape
-        self.projection_matrix, self.normals_projection = self.getProjectionMatrix(
-            img_shape, camera_translation, camera_rotation, camera_center, znear, zfar, focal_length)
+        camera = Camera(
+            camera_translation=camera_translation,
+            rotation_matrix=camera_rotation,
+            znear=znear,
+            zfar=zfar,
+            focal_length=focal_length)
+
+        self.projection_matrix = camera.matrix(img_shape)
+
+        self.normals_projection = camera.get_transform_matrix()[0:3, 0:3]
 
         self.vbo = self.ctx.buffer(
             data=vertices.astype(np.float32).tobytes()
@@ -193,37 +202,6 @@ class Renderer:
         program.release()
         return np.concatenate(skinning_map_per_joint, axis=-1)
 
-    @staticmethod
-    def getProjectionMatrix(img_shape, camera_translation, camera_rotation, camera_center, znear, zfar, focal_length):
-        camera_translation = np.squeeze(camera_translation)
-        # Equivalent to 180 degrees around the y-axis. Transforms the fit to
-        # OpenGL compatible coordinate system.
-        camera_translation[0] *= -1.0
-
-        transpose_rotation = camera_rotation.transpose(1, 0)
-        V = np.eye(4)
-        V[0:3, 0:3] = transpose_rotation
-        V[:3, 3] = -1 * camera_translation
-
-        width, height = float(img_shape[1]), float(img_shape[0])
-        cx, cy = float(camera_center[0]), float(camera_center[1])
-        focal = float(focal_length)
-        P = np.zeros((4, 4))
-        P[0][0] = 2. * focal / width
-        P[1][1] = 2. * focal / height
-        P[0][2] = 2. * cx / width
-        P[1][2] = 2. * cy / height
-        P[3][2] = -1.
-
-        if zfar is None:
-            P[2][2] = -1.0
-            P[2][3] = -2.0 * znear
-        else:
-            P[2][2] = (zfar + znear) / (znear - zfar)
-            P[2][3] = (2 * zfar * znear) / (znear - zfar)
-
-        return (P @ V).astype(np.float32), (transpose_rotation).astype(np.float32)
-
     def load_shader(self, shader_name):
         with open(os.path.join(SHADERS_FOLDER, shader_name + '_vertex.glsl'), 'r') as file:
             vertex_shader = file.read()
@@ -247,10 +225,12 @@ if __name__ == '__main__':
         camera_rotation=result['camera']['rotation']
     )
 
-    solid, depth = renderer.render_solid(get_depth_map=True, back_side=False)
-    normals, rescale = renderer.render_normals(back_side=False)
-    print(f"normals rescaling: {rescale[0]} -> {rescale[1]}")
-    # skinning_map = renderer.render_skinning_map(result['mesh']['skinning_map'])
+    mask, depth_front = renderer.render_solid(get_depth_map=True, back_side=False)
+    _, depth_back = renderer.render_solid(get_depth_map=True, back_side=True)
+    normals_front, rescale_front = renderer.render_normals(back_side=False)
+    normals_back, rescale_back = renderer.render_normals(back_side=True)
+
+    skinning_map = renderer.render_skinning_map(result['mesh']['skinning_map'])
 
     # for i in range(skinning_map.shape[-1]):
     #     cv2.imshow('skinning_map', skinning_map[:, :, i])
@@ -258,14 +238,18 @@ if __name__ == '__main__':
     #         break
     # cv2.destroyAllWindows()
 
-    dmin = np.min(depth)
-    dmax = np.max(np.where(depth == np.max(depth), float('-inf'), depth))
-    # print(dmin, dmax)
-    cv2.imshow('render1', solid)
-    cv2.imshow('render2', (np.flip(normals, axis=2)+1.0)/2)
-    cv2.imshow('depth', 1. - (depth - dmin) / (dmax-dmin))
+    dmin = np.min(depth_front)
+    dmax = np.max(np.where(depth_front == np.max(depth_front), float('-inf'), depth_front))
+
+    cv2.imshow('render1', mask)
+    cv2.imshow('render2', (np.flip(normals_front, axis=2)+1.0)/2)
+    cv2.imshow('depth_front', 1. - (depth_front - dmin) / (dmax-dmin))
     cv2.waitKey(5000)
     cv2.destroyAllWindows()
-    cv2.imwrite("depth.tiff", depth)
-    cv2.imwrite("mask.jpg", solid)
-    np.savez('normals.npz', normals=normals, rescale=rescale)
+    cv2.imwrite("smpl_depth_front.tiff", depth_front)
+    cv2.imwrite("smpl_depth_back.tiff", depth_back)
+    cv2.imwrite("smpl_mask.jpg", mask)
+    np.savez('smpl_normals_front.npz', normals=normals_front, rescale=rescale_front)
+    np.savez('smpl_normals_back.npz', normals=normals_back, rescale=rescale_back)
+    np.save('projection_matrix.npy', renderer.projection_matrix)
+    np.save('skinning_map.npy', skinning_map)
