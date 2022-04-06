@@ -144,3 +144,4 @@ lib/
 *.pkl
 *.npy
 *.npz
+.DS_Store

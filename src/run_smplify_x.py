@@ -29,6 +29,7 @@ torch.backends.cudnn.enabled = False
 
 PROJECT_ROOT = osp.realpath(osp.dirname(osp.dirname(__file__)))
 
+
 class SmplifyX:
     def __init__(self, conf_file: str = osp.join(PROJECT_ROOT, "smplx_conf.yaml"), conf_override: Optional[dict] = None):
         with open(conf_file, "r") as file:
@@ -253,7 +254,7 @@ class SmplifyX:
                 with open(curr_result_fn, 'rb') as file:
                     params = pickle.load(file)
                 curr_result[idx] = dict(
-                    model=body_model,
+                    model=body_model.to(torch.device('cpu')),
                     params=params,
                     mesh=self.get_mesh_from_params(
                         model=body_model, params=params),
