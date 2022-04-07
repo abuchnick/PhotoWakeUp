@@ -42,7 +42,7 @@ class Camera():
         transpose_rotation = np.transpose(rotation, (1, 0))
         V = np.eye(4, dtype=np.float32)
         V[0:3, 0:3] = transpose_rotation
-        V[:3, 3] = -1 * transpose_rotation @ translation
+        V[:3, 3] = -1 * translation
         return V
 
     def matrix(self, img_shape):

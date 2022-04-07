@@ -277,10 +277,8 @@ class SmplifyX:
                 params = pickle.load(file)
 
         if model is None:
-            dataset_obj = create_dataset(**self.configuration)
-            joint_mapper = JointMapper(dataset_obj.get_model2data())
             model_params = dict(model_path=self.configuration['model_folder'],
-                                joint_mapper=joint_mapper,
+                                joint_mapper=None,
                                 create_global_orient=True,
                                 global_orient=params['global_orient'],
                                 create_body_pose=not self.configuration['use_vposer'],
@@ -296,6 +294,7 @@ class SmplifyX:
                                 **self.configuration)
             model = smplx.create(**model_params)
         model = model.to(self.device)
+        model.joint_mapper = None
 
         body_pose = torch.tensor(params['body_pose'], device=self.device)
         if self.configuration['use_vposer']:
@@ -305,19 +304,28 @@ class SmplifyX:
             body_pose = vposer.decode(
                 body_pose,
                 output_type='aa').view(1, -1)
-        model_output = model(return_verts=True, body_pose=body_pose)
-        vertices = model_output.vertices.detach().cpu().numpy().squeeze()
-        joints = model_output.joints.detach().cpu().numpy().squeeze()
+        model_output_posed = model(return_verts=True, body_pose=body_pose)
+        model_output_unposed = model(body_pose=torch.zeros_like(body_pose, device=self.device))
+        vertices = model_output_posed.vertices.detach().cpu().numpy().squeeze()
+        joints_posed = model_output_posed.joints.detach().cpu().numpy().squeeze()
+        joints_unposed = model_output_unposed.joints.detach().cpu().numpy().squeeze()
         # convert to OpenGL compatible axis
-        vertices = vertices  @ np.diag([1, -1, -1])
-        joints = joints  @ np.diag([1, -1, -1])
+        vertices = vertices @ np.diag([1, -1, -1])
+        joints_posed = joints_posed @ np.diag([1, -1, -1])
+        joints_unposed = joints_unposed @ np.diag([1, -1, -1])
         faces = model.faces
         if isinstance(faces, torch.Tensor):
             faces = faces.detach().cpu().numpy().squeeze()
         skinning_map = model.lbs_weights
         if isinstance(skinning_map, torch.Tensor):
             skinning_map = skinning_map.detach().cpu().numpy().squeeze()
-        return dict(vertices=vertices, faces=faces, skinning_map=skinning_map, joints=joints)
+        return dict(
+            vertices=vertices,
+            faces=faces,
+            skinning_map=skinning_map,
+            joints_posed=joints_posed,
+            joints_unposed=joints_unposed
+        )
 
 
 if __name__ == "__main__":

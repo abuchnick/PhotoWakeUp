@@ -6,6 +6,9 @@ import os
 import import_smplifyx as smplifyx
 import numpy as np
 import cv2
+from smplx.lbs import batch_rigid_transform, blend_shapes, vertices2joints
+
+PARENTS = np.array([-1, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 12, 13, 14, 16, 17, 18, 19], dtype=np.int8)
 
 
 class AnimationWindow(mglw.WindowConfig):
@@ -21,6 +24,7 @@ class AnimationWindow(mglw.WindowConfig):
     button = None
     camera = None
     img = None
+    # rotations_matrices = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -56,6 +60,8 @@ class AnimationWindow(mglw.WindowConfig):
             index_buffer=self.ibo,
             index_element_size=2
         )
+
+        # batch_rigid_transform(self.rotations_matrices, mesh['unposed_joints'], PARENTS, dtype=np.float32)
 
         self.texture = self.ctx.texture(self.window_size, components=3, data=np.flip(self.img, axis=[0, 2]).tobytes())
         self.texture.use(0)
@@ -94,7 +100,7 @@ class AnimationWindow(mglw.WindowConfig):
 if __name__ == '__main__':
     with open('result.pkl', 'rb') as file:
         data = pkl.load(file)['goku'][0]
-    image = cv2.imread('.\goku.jpg')
+    image = cv2.imread('.\data\images\goku.jpg')
     AnimationWindow.img = image
     AnimationWindow.mesh = data['mesh']
     AnimationWindow.window_size = (image.shape[1], image.shape[0])
@@ -106,5 +112,6 @@ if __name__ == '__main__':
         zfar=50.0,
         focal_length=5000.0
     )
+    # AnimationWindow.rotations_matrices = np.load('skip_to_walk_rot_mats.npy')
     print("mesh", data['mesh']['vertices'].mean(axis=0))
     mglw.run_window_config(AnimationWindow)
