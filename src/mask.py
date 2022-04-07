@@ -10,10 +10,10 @@ import torchvision.transforms.functional as F
 import cv2
 import time
 import segmentation_refinement as refine
-from os.path import join, realpath
+from os.path import join, abspath
 from os import getcwd
 
-MODELS_DIR = realpath(join(__file__, "..", "models"))
+MODELS_DIR = abspath(join(__file__, "..", "models"))
 
 
 class Mask:
@@ -84,7 +84,7 @@ class Mask:
 
 if __name__ == "__main__":
     mask = Mask(
-        img_path=r".\\images\\goku.jpg",
+        img_path=r".\\data\\images_temp\\goku.jpg",
         save_path=r"."
     )
     mask.create_mask()

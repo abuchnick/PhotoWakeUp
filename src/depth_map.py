@@ -6,6 +6,8 @@ import os
 from Image_renderer import map_ranges
 
 
+
+
 class DepthMap:
     def __init__(self, mask, depth_map_coarse, normal_map, depth_rescale=((0, 1), (0, 1))):
         self.depth_map_coarse = np.where(
@@ -29,7 +31,7 @@ class DepthMap:
             return y * self.depth_map_coarse.shape[1] + x
 
         num_equ = len(self.inner_pts) * 2 + len(self.boundary_pts) * 3
-        P = ssp.lil_array((num_equ, self.depth_map_coarse.size))
+        P = ssp.lil_matrix((num_equ, self.depth_map_coarse.size))
         self.b = np.zeros(num_equ)
         i = 0
         for x, y in self.inner_pts:
@@ -60,7 +62,6 @@ class DepthMap:
                 self.b[i] = ny
                 i += 1
         self.parameter_matrix = P
-        print(f"{i=}")
 
     def classifyPoints(self):
         _, self.thresholded_image = cv2.threshold(self.mask, 100, 255, cv2.THRESH_BINARY)  # each value below 100 will become 0, and above will become 255
