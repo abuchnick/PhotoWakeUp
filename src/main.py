@@ -15,6 +15,7 @@ from inverse_warp import inverse_warp, Warp
 from depth_map import DepthMap
 from create_mesh import Reconstruct
 import realpath
+import pickle
 
 
 
@@ -53,6 +54,8 @@ img_name = os.path.splitext(configuration["inputFileName"])[0]
 
 smplifyx_object = SmplifyX()
 result = smplifyx_object()[img_name][0]
+# with open('result.pkl', 'wb') as file:
+#     pickle.dump(result, file)
 
 img_size = input_image.shape[0:2]
 renderer = Renderer(
@@ -68,11 +71,23 @@ smpl_normals_front, rescale_front = renderer.render_normals()
 smpl_normals_back, rescale_back = renderer.render_normals(back_side=True)
 skinning_map = renderer.render_skinning_map(result['mesh']['skinning_map'])
 
-cv2.imwrite("smpl_depth_front.tiff", smpl_depth_front)
-cv2.imwrite("smpl_back_depth.tiff", smpl_depth_back)
-cv2.imwrite("smpl_mask.jpg", smpl_mask)
-np.save("smpl_normals_front.npy", smpl_normals_front)
-np.save("smpl_normals_back.npy", smpl_normals_back)
+dmin_front = np.min(smpl_depth_front)
+dmin_back = np.min(smpl_depth_back)
+dmax_front = np.max(np.where(smpl_depth_front == np.max(smpl_depth_front), float('-inf'), smpl_depth_front))
+dmax_back = np.max(np.where(smpl_depth_back == np.max(smpl_depth_back), float('-inf'), smpl_depth_back))
+cv2.imshow('normal_front.jpg', (np.flip(smpl_normals_front, axis=2) + 1.0) / 2)
+cv2.imshow('normal_back.jpg', (np.flip(smpl_normals_back, axis=2) + 1.0) / 2)
+cv2.imshow('depth_front.jpg', 1. - (smpl_depth_front - dmin_front) / (dmax_front - dmin_front))
+cv2.imshow('depth_back.jpg', 1. - (smpl_depth_back - dmin_back) / (dmax_back - dmin_back))
+
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+
+# cv2.imwrite("smpl_depth_front.tiff", smpl_depth_front)
+# cv2.imwrite("smpl_back_depth.tiff", smpl_depth_back)
+# cv2.imwrite("smpl_mask.jpg", smpl_mask)
+# np.save("smpl_normals_front.npy", smpl_normals_front)
+# np.save("smpl_normals_back.npy", smpl_normals_back)
 
 projection_matrix = renderer.projection_matrix
 
@@ -89,6 +104,23 @@ projected_depth_back = warp(map_img=smpl_depth_back)
 
 np.save("normals_front.npy", projected_normals_front)
 np.save("normals_back.npy", projected_normals_back)
+
+#
+# dmin_front = np.min(np.where(projected_depth_front == float('-inf'), float('inf'), projected_depth_front))
+# dmin_back = np.min(np.where(projected_depth_back == float('-inf'), float('inf'), projected_depth_back))
+# dmax_front = np.max(np.where(projected_depth_front == np.max(projected_depth_front), float('-inf'), projected_depth_front))
+# dmax_back = np.max(np.where(projected_depth_back == np.max(projected_depth_back), float('-inf'), projected_depth_back))
+# cv2.imshow('normal_front.jpg',  (np.flip(projected_normals_front, axis=2) + 1.0) / 2)
+# cv2.imshow('normal_back.jpg', (np.flip(projected_normals_back, axis=2) + 1.0) / 2)
+# a = 1. - (projected_depth_front - dmin_front) / (dmax_front - dmin_front)
+# print(f"{np.max(a)},{np.min(a)}")
+# print(a)
+# cv2.imshow('depth_front.jpg', 1. - (projected_depth_front - dmin_front) / (dmax_front - dmin_front))
+# cv2.imshow('depth_back.jpg', 1. - (projected_depth_back - dmin_back) / (dmax_back - dmin_back))
+#
+# cv2.waitKey(0)
+# cv2.destroyAllWindows()
+
 
 # Depth map integration
 
@@ -116,6 +148,8 @@ back_depth_integration = projected_depth_back
 
 # Create mesh
 
+segmentation[front_depth_integration == np.Inf] = 0
+segmentation[front_depth_integration == np.NINF] = 0
 mesh = Reconstruct(segmentation, front_depth_integration, back_depth_integration, projection_matrix)
 vertices, faces, uv_coords = mesh.create_mesh()
 
