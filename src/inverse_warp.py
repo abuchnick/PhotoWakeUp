@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 from os import getcwd
 from os.path import join
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from itertools import chain
 
 IMAGES_DIR = join(__file__, "..", "..", "images")
