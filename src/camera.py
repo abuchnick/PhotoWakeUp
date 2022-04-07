@@ -1,6 +1,6 @@
 from turtle import distance
 import numpy as np
-from scipy.spatial.transform import Rotation as Rot
+from scipy.spatial.transform import Rotation as R
 
 
 class Camera():
@@ -10,7 +10,8 @@ class Camera():
         self.znear = znear
         self.zfar = zfar
         self.focal_length = focal_length
-        self.target = self.camera_translation + distance * self.rotation_matrix[:, 2]
+        # self.target = self.camera_translation - distance * self.rotation_matrix[:, 2]
+        self.distance = distance
 
     def get_projection_matrix(self, img_shape):
         width, height = float(img_shape[1]), float(img_shape[0])
@@ -41,23 +42,26 @@ class Camera():
         transpose_rotation = np.transpose(rotation, (1, 0))
         V = np.eye(4, dtype=np.float32)
         V[0:3, 0:3] = transpose_rotation
-        V[:3, 3] = -1 * translation
+        V[:3, 3] = -1 * transpose_rotation @ translation
         return V
 
     def matrix(self, img_shape):
         return self.get_projection_matrix(img_shape) @ self.get_transform_matrix()
 
     def orbit(self, dx, dy):
-        distance = np.linalg.norm(self.target - self.camera_translation)
-        self.rotation_matrix = self.rotation_matrix
-        Y = R.from_rotvec(np.array([0, dy, 0])).as_matrix()
-        self.target
+        # distance = np.linalg.norm(self.target - self.camera_translation)
+        target = self.camera_translation - self.distance * self.rotation_matrix[:, 2]
+        X = R.from_rotvec((-dy/1000.) * self.rotation_matrix[:, 0]).as_matrix()
+        Y = R.from_rotvec(np.array([0, -dx/1000., 0])).as_matrix()
+        self.rotation_matrix = Y @ (X @ self.rotation_matrix)
+        self.camera_translation = target + self.distance * self.rotation_matrix[:, 2]
 
     def pan(self, dx, dy):
-        movement = (dx/1000.) * self.rotation_matrix[:, 0] + (dy/1000.) * self.rotation_matrix[:, 1]
+        movement = (dx/500.) * self.rotation_matrix[:, 0] + (dy/500.) * self.rotation_matrix[:, 1]
         self.camera_translation += movement
-        self.target += movement
+        # self.target += movement
 
     def slide(self, dz):
-        movement = (dz*1000.) * self.rotation_matrix[:, 2] / self.focal_length
+        movement = (dz*1000. / self.focal_length) * self.rotation_matrix[2, :]
         self.camera_translation += movement
+        self.distance += (dz*1000. / self.focal_length)
