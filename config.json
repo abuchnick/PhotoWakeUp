@@ -1,4 +1,5 @@
 {
-    "imagesDirectoryName": "images_temp",
-    "inputFileName": "man.jpg"
+    "imagesDirectoryName": "images",
+    "imagesTempDirectoryName": "images_temp",
+    "inputFileName": "goku.jpg"
 }

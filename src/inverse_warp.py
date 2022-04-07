@@ -47,7 +47,7 @@ def argmin_sub_array(arr, start, end):
 
 
 def get_contours(img):
-    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # to use cv2.threshold the img must be a grayscale img
+    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) > 2 else img # to use cv2.threshold the img must be a grayscale img
     _, thresholded_image = cv2.threshold(gray_img, 100, 255, cv2.THRESH_BINARY)  # each value below 100 will become 0, and above will become 255
     contours, _ = cv2.findContours(thresholded_image, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)  # retrieve all points in contour(don't approximate) and save full hirarchy
     contours = np.array(contours[0]).squeeze(1)  # this will take the contours of the first object only. cast for nd-array since the output is a list, and squeeze dim 1 since its redundant
@@ -56,7 +56,7 @@ def get_contours(img):
 
 def find_inner_pixels(img, contour_points):
     inner_pixels = []
-    h, w, _ = img.shape
+    h, w = img.shape[0], img.shape[1]
 
     for i in range(w):
         for j in range(h):
