@@ -20,7 +20,6 @@ import realpath
 
 PROJECT_ROOT = os.path.abspath(join(__file__, "..", ".."))
 
-
 # TODO if have sufficient time - complete configuration definition & sys.argv path to image
 
 # torch.cuda.empty_cache()
@@ -67,6 +66,7 @@ smpl_mask, smpl_depth_front = renderer.render_solid(get_depth_map=True)
 _, smpl_depth_back = renderer.render_solid(get_depth_map=True, back_side=True)
 smpl_normals_front, rescale_front = renderer.render_normals()
 smpl_normals_back, rescale_back = renderer.render_normals(back_side=True)
+skinning_map = renderer.render_skinning_map(result['mesh']['skinning_map'])
 
 cv2.imwrite("smpl_depth_front.tiff", smpl_depth_front)
 cv2.imwrite("smpl_back_depth.tiff", smpl_depth_back)
