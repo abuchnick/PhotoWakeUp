@@ -73,7 +73,7 @@ ign_part_pairs:
 - 6,17
 - 1,2
 - 12,22
-img_folder: images_temp
+img_folder: images
 init_joints_idxs:
 - 9
 - 12

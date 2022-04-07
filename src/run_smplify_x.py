@@ -25,8 +25,6 @@ from human_body_prior.tools.model_loader import load_vposer
 
 import pickle
 
-torch.backends.cudnn.enabled = False
-
 PROJECT_ROOT = osp.realpath(osp.dirname(osp.dirname(__file__)))
 
 
@@ -51,11 +49,13 @@ class SmplifyX:
 
     def __call__(self):
         cwd = os.getcwd()
+        torch.backends.cudnn.enabled = False
         try:
             # change working directory to project root
             os.chdir(PROJECT_ROOT)
             return self.run()
         finally:
+            torch.backends.cudnn.enabled = True
             os.chdir(cwd)
 
     def run(self):
