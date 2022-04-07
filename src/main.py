@@ -15,7 +15,9 @@ from inverse_warp import inverse_warp, Warp
 from depth_map import DepthMap
 from create_mesh import Reconstruct
 import realpath
-
+from animation_viewer import AnimationWindow
+from camera import Camera
+import moderngl_window as mglw
 
 
 PROJECT_ROOT = os.path.abspath(join(__file__, "..", ".."))
@@ -27,9 +29,9 @@ PROJECT_ROOT = os.path.abspath(join(__file__, "..", ".."))
 with open(join(PROJECT_ROOT, "config.json"), 'r') as cfg:
     configuration = json.load(cfg)
 images_dir_path = join(PROJECT_ROOT, "data",
-                        configuration["imagesDirectoryName"])
+                       configuration["imagesDirectoryName"])
 images_temp_dir_path = join(PROJECT_ROOT, "data",
-                        configuration["imagesTempDirectoryName"])
+                            configuration["imagesTempDirectoryName"])
 input_image_path = join(images_dir_path,
                         configuration["inputFileName"])
 input_image = cv2.imread(input_image_path)
@@ -45,7 +47,7 @@ pose_estimator = PoseEstimator()
 file_name = ".".join(os.path.basename(input_image_path).split(".")[0:-1])
 torch.cuda.empty_cache()
 pose_estimator(img=input_image,
-                name=file_name)  # how do we use pose estimation outputs for smplx?
+               name=file_name)  # how do we use pose estimation outputs for smplx?
 
 img_name = os.path.splitext(configuration["inputFileName"])[0]
 
@@ -121,3 +123,21 @@ vertices, faces, uv_coords = mesh.create_mesh()
 
 
 joints = result['mesh']['joints']
+
+AnimationWindow.img = input_image
+AnimationWindow.mesh = dict(
+    vertices=vertices,
+    faces=faces
+)
+AnimationWindow.window_size = (input_image.shape[1], input_image.shape[0])
+AnimationWindow.camera = Camera(
+    camera_translation=result['camera']['translation'],
+    rotation_matrix=result['camera']['rotation'],
+    distance=np.linalg.norm(result['mesh']['vertices'].mean(axis=0) - result['camera']['translation']),
+    znear=1.0,
+    zfar=50.0,
+    focal_length=5000.0
+)
+# AnimationWindow.rotations_matrices = np.load('skip_to_walk_rot_mats.npy')
+print("mesh", vertices.mean(axis=0))
+mglw.run_window_config(AnimationWindow)
