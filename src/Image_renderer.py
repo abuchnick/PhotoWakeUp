@@ -1,11 +1,11 @@
-from concurrent.futures import process
+# from concurrent.futures import process
 import cv2
 import moderngl as gl
 import numpy as np
 from typing import Tuple, Union
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import pickle as pkl
-import import_smplifyx as smplifyx
+# import import_smplifyx as smplifyx
 import trimesh
 import os
 from camera import Camera
@@ -21,8 +21,8 @@ class Renderer:
     def __init__(
         self,
         vertices: np.ndarray,  # (n, 3)
-        faces: np.ndarray,  # (m, 3) indices
-        img_shape: Tuple[int, int],  # (HxW)
+        faces: np.ndarray,  # (m, 3) indices,
+        img: np.ndarray,
         camera_translation: np.ndarray,  # (3,)
         camera_rotation: np.ndarray,  # (3, 3)
         # camera_center=(0., 0.),  # (2,)
@@ -38,7 +38,8 @@ class Renderer:
         self.normal_depth_rescale = None
         self.znear = znear
         self.zfar = zfar
-        self.img_shape = img_shape
+        self.img = img
+        self.img_shape = img.shape
         camera = Camera(
             camera_translation=camera_translation,
             rotation_matrix=camera_rotation,
@@ -46,7 +47,7 @@ class Renderer:
             zfar=zfar,
             focal_length=focal_length)
 
-        self.projection_matrix = camera.matrix(img_shape)
+        self.projection_matrix = camera.matrix(self.img_shape)
 
         self.normals_projection = camera.get_transform_matrix()[0:3, 0:3]
 
@@ -58,7 +59,7 @@ class Renderer:
         self.vnbo = self.ctx.buffer(reserve=self.vbo.size)
 
         self.fbo = self.ctx.simple_framebuffer(
-            size=tuple(reversed(img_shape)),
+            size=tuple(reversed(self.img_shape)),
             components=3
         )
 
@@ -212,15 +213,69 @@ class Renderer:
             fragment_shader=fragment_shader
         )
 
+    def get_uv_coords(self):
+        num_vertices = self.vertices.shape[0]
+        hom_coords = np.concatenate((self.vertices, np.ones((num_vertices, 1))), axis=1)
+        projected_coords = (self.projection_matrix @ hom_coords.T).T
+        return (projected_coords[:, :2] / projected_coords[:, [3]] + 1) / 2
+    
+    def render_texture(self, img, vertices = None):
+        UVs = self.get_uv_coords()
+        program = self.load_shader("animation")
+        
+        if vertices:
+            vbo = self.ctx.buffer(
+            data=vertices.astype(np.float32).tobytes()
+        )
+        else:
+            vbo = self.vbo
+        
+        program['projection'].write(
+            (self.projection_matrix).tobytes('F')
+        )
+
+        uvbo = self.ctx.buffer(
+            data=UVs.astype(np.float32).tobytes()
+        )
+
+        vao = self.ctx.vertex_array(
+            program=program,
+            content=[
+                (vbo, '3f4', 'vertex'),
+                (uvbo, '2f4', 'uv_coordinates')
+            ],
+            index_buffer=self.ibo,
+            index_element_size=2
+        )
+        
+        
+        texture = self.ctx.texture(self.img_shape, components=3, data=np.flip(img, axis=[0, 2]).tobytes())
+        texture.use(0)
+        program['Texture'] = 0
+        
+        self.fbo.use()
+        self.fbo.clear()
+        vao.render()
+
+        render = np.flip(np.frombuffer(
+            self.fbo.read(), dtype=np.uint8).reshape(*self.img_shape,  3), axis=[0, 2])
+
+        vao.release()
+        program.release()
+        texture.release()
+        
+        return render
+
 
 if __name__ == '__main__':
     with open('result.pkl', 'rb') as file:
-        result = pkl.load(file)['goku'][0]
+        result = pkl.load(file)['weird'][0]
     vertices = result['mesh']['vertices']
+    img = cv2.imread("images/weird.jpeg")
     renderer = Renderer(
         vertices=result['mesh']['vertices'],
         faces=result['mesh']['faces'],
-        img_shape=(1200, 1000),
+        img=img,
         camera_translation=result['camera']['translation'],
         camera_rotation=result['camera']['rotation']
     )
@@ -232,6 +287,12 @@ if __name__ == '__main__':
 
     skinning_map = renderer.render_skinning_map(result['mesh']['skinning_map'])
 
+    render = renderer.render_texture(img)
+    cv2.imshow("ahlan itzik", render)
+    cv2.waitKey()
+    cv2.destroyAllWindows()
+    print(1)
+    
     # for i in range(skinning_map.shape[-1]):
     #     cv2.imshow('skinning_map', skinning_map[:, :, i])
     #     if cv2.waitKey(200) != -1:

@@ -145,4 +145,4 @@ lib/
 *.npy
 *.npz
 .DS_Store
-lib/openpose
+lib/openpose/**
