@@ -1,11 +1,9 @@
-# from concurrent.futures import process
 import cv2
 import moderngl as gl
 import numpy as np
 from typing import Tuple, Union
-# import matplotlib.pyplot as plt
 import pickle as pkl
-# import import_smplifyx as smplifyx
+import import_smplifyx as smplifyx
 import trimesh
 import os
 from camera import Camera
@@ -224,19 +222,13 @@ class Renderer:
         program = self.load_shader("animation")
         
         if vertices:
-            vbo = self.ctx.buffer(
-            data=vertices.astype(np.float32).tobytes()
-        )
+            vbo = self.ctx.buffer(data=vertices.astype(np.float32).tobytes())
         else:
             vbo = self.vbo
         
-        program['projection'].write(
-            (self.projection_matrix).tobytes('F')
-        )
+        program['projection'].write((self.projection_matrix).tobytes('F'))
 
-        uvbo = self.ctx.buffer(
-            data=UVs.astype(np.float32).tobytes()
-        )
+        uvbo = self.ctx.buffer(data=UVs.astype(np.float32).tobytes())
 
         vao = self.ctx.vertex_array(
             program=program,
