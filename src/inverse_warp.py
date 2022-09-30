@@ -1,18 +1,13 @@
 import numpy as np
 import cv2
-from os import getcwd
 from os.path import join
-# import matplotlib.pyplot as plt
 from itertools import chain
 
 IMAGES_DIR = join(__file__, "..", "..", "images")
 PATH_TO_ORG_MASK = join(IMAGES_DIR, "refined_mask.png")  # TODO still doesn't have this file
-# PATH_TO_ORG_MASK = join(IMAGES_DIR, "org_mask (Custom).jpeg")
 PATH_TO_SMPL_MASK = join(IMAGES_DIR, "smpl_mask.jpeg")
-# PATH_TO_SMPL_MASK = join(IMAGES_DIR, "smpl_mask (Custom).jpeg")
 PATH_TO_NORMALS_MAP = join(IMAGES_DIR, "normals_map (Custom).jpeg")
 PATH_TO_DEPTH_MAP = join(IMAGES_DIR, "smpl_depth_map (Custom).jpeg")
-
 
 
 class Warp:

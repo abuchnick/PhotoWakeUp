@@ -1,6 +1,4 @@
 import numpy as np
-import os.path as osp
-# from human_body_prior.body_model.body_model import BodyModel
 from smplx.lbs import batch_rodrigues
 import torch
 
@@ -8,11 +6,11 @@ import torch
 def calc_rot_matrices(pose, framerate):
     return batch_rodrigues(pose.view(-1, 3)).view([framerate, -1, 3, 3])
     
+    
 def rotation_matrices_extractor():
     comp_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     animation = np.load(r'./data/skip_to_walk.npz')
     num_betas = animation['num_betas']
-    # bm = BodyModel(bm_path=osp.abspath(r'./data/smplx_model/smplx/SMPLX_MALE.npz'), model_type='smplx', num_betas=num_betas).to(comp_device)
     time_length = len(animation['trans'])
 
     body_params = {
@@ -26,6 +24,7 @@ def rotation_matrices_extractor():
     full_pose = torch.cat([body_params['root_orient'], body_params['pose_body']], dim=1)
     rot_matrices = calc_rot_matrices(full_pose, framerate=time_length).detach().cpu().numpy()
     np.save(arr=rot_matrices, file='skip_to_walk_rot_mats.npy')
+
 
 if __name__ == '__main__':
     rotation_matrices_extractor()

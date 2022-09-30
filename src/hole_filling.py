@@ -2,9 +2,7 @@ from inverse_warp import mean_value_coordinates
 import numpy as np
 import cv2
 from typing import List
-from collections import defaultdict
-import imageio
-import torch
+
 
 class HoleFilling:
     def __init__(self, depth_map):
