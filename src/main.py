@@ -149,11 +149,11 @@ back_depth_integration = projected_depth_back
 #back_depth_integration = np.load('back_depth_integration.npy')
 
 # Create mesh
-
 segmentation[front_depth_integration == np.Inf] = 0
 segmentation[front_depth_integration == np.NINF] = 0
 mesh = Reconstruct(segmentation, front_depth_integration, back_depth_integration, projection_matrix)
 vertices, faces, uv_coords = mesh.create_mesh()
+
 
 
 # AnimationWindow.img = input_image

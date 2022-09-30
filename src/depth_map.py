@@ -6,8 +6,6 @@ import os
 from Image_renderer import map_ranges
 
 
-
-
 class DepthMap:
     def __init__(self, mask, depth_map_coarse, normal_map, depth_rescale=((0, 1), (0, 1))):
         self.depth_map_coarse = np.where(

@@ -1,6 +1,4 @@
 import numpy as np
-import os.path as osp
-# from human_body_prior.body_model.body_model import BodyModel
 from smplx.lbs import batch_rodrigues
 import torch
 
@@ -13,7 +11,6 @@ def rotation_matrices_extractor():
     comp_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     animation = np.load(r'./data/skip_to_walk.npz')
     num_betas = animation['num_betas']
-    # bm = BodyModel(bm_path=osp.abspath(r'./data/smplx_model/smplx/SMPLX_MALE.npz'), model_type='smplx', num_betas=num_betas).to(comp_device)
     time_length = len(animation['trans'])
 
     body_params = {

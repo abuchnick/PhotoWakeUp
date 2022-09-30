@@ -3,49 +3,64 @@ import numpy as np
 import cv2
 from typing import List
 
+
 class HoleFilling:
-    def __init__(self, normal_map: np.ndarray):
-        self.normal_map = normal_map
+    def __init__(self, depth_map):
         self.inner_points = []
-        self.contours_mvcs = []
-        self.inner_contours = self.classify_points()
+        self.contours_mvcs = {}
+        self.inner_contours = []
+        
+        self.classify_points(depth_map)
 
-    def __call__(self, map_array):
+    def interpolation(self, map_array, contour_boundery_values):
         for y, x, contour_num in self.inner_points:
-              # here we multiply Bx3 with Bx1, where B is the number of boundary points on current contour
-              # so we get Bx3, and then after summing on axis 0  
-            map_array[x, y] = (self.inner_contours[contour_num] * self.contours_mvcs[contour_num]).sum(axis=0)
+              # here we multiply Bx2 with Bx1, where B is the number of boundary points on current contour
+              # so we get Bx2, and then after summing on axis 0 
+            boundery = np.array(contour_boundery_values[contour_num])
+            if boundery.ndim == 1:
+                boundery = boundery.reshape(-1,1)
+            mvc = np.array(self.contours_mvcs[(y,x)]).reshape(-1,1)
+            map_array[y,x] = np.sum(np.multiply(boundery,mvc),axis=0)
         return map_array
+    
+    def contours_boundery_values(self, map):
+        inner_contours_map = []
+        for inner_contour in self.inner_contours:
+            inner_contours_map.append([map[point[1],point[0]] for point in inner_contour])
+        return inner_contours_map
 
-    def classify_points(self) -> List[List[List[int]]]:
-        normal_mask = np.all(self.normal_map == 0, axis=2)
-        normal_mask = normal_mask.astype(np.uint8) * 255
-        # _, thresholded_mask = cv2.threshold(normal_mask, 1, 255, cv2.THRESH_BINARY)
-        contours, hierarchy = cv2.findContours(normal_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+
+    def classify_points(self, depth_map) -> List[List[List[int]]]:
+        holes = (depth_map != np.inf).astype(np.uint8)
+        contours, hierarchy = cv2.findContours(holes, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         i = hierarchy[0][0][2]
-        inner_contours = []
         while True:
             if i == -1:
                 break
-            inner_contours.append(contours[i])
+            self.inner_contours.append(np.squeeze(contours[i], axis=1))
             i = hierarchy[0][i][0]
-        inner_contours_num = len(inner_contours)
-        self.contours_mvcs = [ [] for _ in range(inner_contours_num) ]
-        for y in range(self.normal_map.shape[0]):
-            for x in range(self.normal_map.shape[1]):
-                for contour_num, inner_contour in enumerate(inner_contours):
+        for y in range(depth_map.shape[0]):
+            for x in range(depth_map.shape[1]):
+                for contour_num, inner_contour in enumerate(self.inner_contours):
                     if cv2.pointPolygonTest(inner_contour, (x, y), False) == 1:
                         self.inner_points.append([y, x, contour_num])
                         point_mvc = mean_value_coordinates(org_contours_pixels=np.array(inner_contour), inner_pixel=np.array([x, y]))
-                        self.contours_mvcs[contour_num].append(point_mvc)
+                        self.contours_mvcs[(y,x)] = point_mvc
                         break  # there can be only one contour that contains (x, y)
-        return inner_contours
+        return
+
 
 if __name__ == '__main__':
-    normal_map = np.load('normals_front.npy')
-    hole_filler = HoleFilling(normal_map=normal_map)
-    normal_map_filled = hole_filler(normal_map)
-
+    depth_map = np.load('depth_front.npy')
+    skinning = np.load('skinning_map_image.npy')
+    hole_filler = HoleFilling(depth_map=depth_map)
+    contours_boundery_values = hole_filler.contours_boundery_values(map=depth_map)
+    depth_map_filled = hole_filler.interpolation(depth_map, contours_boundery_values)
+    dmin = np.min(np.where(depth_map_filled == np.min(depth_map_filled), float('inf'), depth_map_filled))
+    dmax = np.max(np.where(depth_map_filled == np.max(depth_map_filled), float('-inf'), depth_map_filled))
+    cv2.imshow('depth_front', (depth_map_filled - dmin) / (dmax-dmin))
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 
     
