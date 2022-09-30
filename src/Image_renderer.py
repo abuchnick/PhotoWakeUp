@@ -3,10 +3,11 @@ import moderngl as gl
 import numpy as np
 from typing import Tuple, Union
 import pickle as pkl
+
+from camera import Camera
 import import_smplifyx as smplifyx
 import trimesh
 import os
-from camera import Camera
 
 SHADERS_FOLDER = os.path.realpath(os.path.join(__file__, '../shaders'))
 
@@ -37,7 +38,7 @@ class Renderer:
         self.znear = znear
         self.zfar = zfar
         self.img = img
-        self.img_shape = img.shape
+        self.img_shape = img.shape[:2]
         camera = Camera(
             camera_translation=camera_translation,
             rotation_matrix=camera_rotation,
@@ -52,7 +53,7 @@ class Renderer:
         self.vbo = self.ctx.buffer(
             data=vertices.astype(np.float32).tobytes()
         )
-        self.ibo = self.ctx.buffer(data=faces.astype(np.uint16).tobytes())
+        self.ibo = self.ctx.buffer(data=faces.astype(np.uint32).tobytes())
 
         self.vnbo = self.ctx.buffer(reserve=self.vbo.size)
 
@@ -82,7 +83,7 @@ class Renderer:
             program=program,
             content=[(self.vbo, '3f4', 'vertex')],
             index_buffer=self.ibo,
-            index_element_size=2
+            index_element_size=4
         )
 
         self.fbo.use()
@@ -141,7 +142,7 @@ class Renderer:
                 (self.vnbo, '3f4', 'normal')
             ],
             index_buffer=self.ibo,
-            index_element_size=2
+            index_element_size=4
         )
 
         fbo = self.ctx.framebuffer(
@@ -177,7 +178,7 @@ class Renderer:
                 (skinning_weights_buffer, 'f4', 'weight')
             ],
             index_buffer=self.ibo,
-            index_element_size=2
+            index_element_size=4
         )
 
         fbo = self.ctx.framebuffer(
@@ -186,7 +187,7 @@ class Renderer:
         )
         fbo.use()
         skinning_map_per_joint = []
-        for i in range(22):  # we only use the first 22 weight since we dont animate face and hands
+        for i in range(skinning_map.shape[1]):
             fbo.clear()
             skinning_weights_buffer.write(skinning_map[:, i].astype(np.float32).tobytes())
             vao.render()
@@ -215,17 +216,19 @@ class Renderer:
         num_vertices = self.vertices.shape[0]
         hom_coords = np.concatenate((self.vertices, np.ones((num_vertices, 1))), axis=1)
         projected_coords = (self.projection_matrix @ hom_coords.T).T
-        return (projected_coords[:, :2] / projected_coords[:, [3]] + 1) / 2
-    
-    def render_texture(self, img, vertices = None):
+        return ((projected_coords[:, :2] / projected_coords[:, [3]] + 1) / 2)
+
+    def render_texture(self, img=None, vertices=None):
+        if img is None:
+            img = self.img
         UVs = self.get_uv_coords()
         program = self.load_shader("animation")
-        
-        if vertices:
+
+        if vertices is not None:
             vbo = self.ctx.buffer(data=vertices.astype(np.float32).tobytes())
         else:
             vbo = self.vbo
-        
+
         program['projection'].write((self.projection_matrix).tobytes('F'))
 
         uvbo = self.ctx.buffer(data=UVs.astype(np.float32).tobytes())
@@ -237,14 +240,13 @@ class Renderer:
                 (uvbo, '2f4', 'uv_coordinates')
             ],
             index_buffer=self.ibo,
-            index_element_size=2
+            index_element_size=4
         )
-        
-        
+
         texture = self.ctx.texture(self.img_shape, components=3, data=np.flip(img, axis=[0, 2]).tobytes())
         texture.use(0)
         program['Texture'] = 0
-        
+
         self.fbo.use()
         self.fbo.clear()
         vao.render()
@@ -255,7 +257,40 @@ class Renderer:
         vao.release()
         program.release()
         texture.release()
-        
+
+        return render
+
+    def set_vertices(self, vertices):
+        self.vertices = vertices
+        self.vbo = self.ctx.buffer(data=vertices.astype(np.float32).tobytes())
+
+    def render_joints(self, joints) -> np.ndarray:
+        program = self.load_shader('solid')
+
+        program['projection'].write(
+            (self.projection_matrix).tobytes('F')
+        )
+
+        vbo = self.ctx.buffer(data=joints.astype(np.float32).tobytes())
+
+        vao = self.ctx.vertex_array(
+            program=program,
+            content=[(vbo, '3f4', 'vertex')]
+        )
+
+        self.ctx.point_size = 7
+        # self.ctx.line_width = 3
+
+        self.fbo.use()
+        self.fbo.clear()
+        vao.render(mode=self.ctx.POINTS)
+
+        render = np.flip(np.frombuffer(
+            self.fbo.read(), dtype=np.uint8).reshape(*self.img_shape,  3), axis=[0, 2])
+
+        vao.release()
+        program.release()
+
         return render
 
 
@@ -284,7 +319,7 @@ if __name__ == '__main__':
     cv2.waitKey()
     cv2.destroyAllWindows()
     print(1)
-    
+
     # for i in range(skinning_map.shape[-1]):
     #     cv2.imshow('skinning_map', skinning_map[:, :, i])
     #     if cv2.waitKey(200) != -1:
