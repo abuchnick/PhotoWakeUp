@@ -12,6 +12,7 @@ class HoleFilling:
 
         self.classify_points(depth_map)
 
+<<<<<<< HEAD
     def interpolation(self, map_array, contour_boundery_values):
         for y, x, contour_num in self.inner_points:
             # here we multiply Bx2 with Bx1, where B is the number of boundary points on current contour
@@ -28,6 +29,23 @@ class HoleFilling:
         for inner_contour in self.inner_contours:
             inner_contours_map.append([map[point[1], point[0]] for point in inner_contour])
         return inner_contours_map
+=======
+    def __call__(self, map):
+        
+        inner_contours_map = []
+        for inner_contour in self.inner_contours:
+            inner_contours_map.append([map[point[1],point[0]] for point in inner_contour])
+        
+        for y, x, contour_num in self.inner_points:
+              # here we multiply Bx2 with Bx1, where B is the number of boundary points on current contour
+              # so we get Bx2, and then after summing on axis 0 
+            boundery = np.array(inner_contours_map[contour_num])
+            if boundery.ndim == 1:
+                boundery = boundery.reshape(-1,1)
+            mvc = np.array(self.contours_mvcs[(y,x)]).reshape(-1,1)
+            map[y,x] = np.sum(np.multiply(boundery,mvc),axis=0)
+        return map
+>>>>>>> 787bf72 (merge to call function)
 
     def classify_points(self, depth_map) -> List[List[List[int]]]:
         holes = (depth_map != np.inf).astype(np.uint8)
