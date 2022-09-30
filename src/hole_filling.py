@@ -9,26 +9,25 @@ class HoleFilling:
         self.inner_points = []
         self.contours_mvcs = {}
         self.inner_contours = []
-        
+
         self.classify_points(depth_map)
 
     def interpolation(self, map_array, contour_boundery_values):
         for y, x, contour_num in self.inner_points:
-              # here we multiply Bx2 with Bx1, where B is the number of boundary points on current contour
-              # so we get Bx2, and then after summing on axis 0 
+            # here we multiply Bx2 with Bx1, where B is the number of boundary points on current contour
+            # so we get Bx2, and then after summing on axis 0
             boundery = np.array(contour_boundery_values[contour_num])
             if boundery.ndim == 1:
-                boundery = boundery.reshape(-1,1)
-            mvc = np.array(self.contours_mvcs[(y,x)]).reshape(-1,1)
-            map_array[y,x] = np.sum(np.multiply(boundery,mvc),axis=0)
+                boundery = boundery.reshape(-1, 1)
+            mvc = np.array(self.contours_mvcs[(y, x)]).reshape(-1, 1)
+            map_array[y, x] = np.sum(np.multiply(boundery, mvc), axis=0)
         return map_array
-    
+
     def contours_boundery_values(self, map):
         inner_contours_map = []
         for inner_contour in self.inner_contours:
-            inner_contours_map.append([map[point[1],point[0]] for point in inner_contour])
+            inner_contours_map.append([map[point[1], point[0]] for point in inner_contour])
         return inner_contours_map
-
 
     def classify_points(self, depth_map) -> List[List[List[int]]]:
         holes = (depth_map != np.inf).astype(np.uint8)
@@ -45,27 +44,42 @@ class HoleFilling:
                     if cv2.pointPolygonTest(inner_contour, (x, y), False) == 1:
                         self.inner_points.append([y, x, contour_num])
                         point_mvc = mean_value_coordinates(org_contours_pixels=np.array(inner_contour), inner_pixel=np.array([x, y]))
-                        self.contours_mvcs[(y,x)] = point_mvc
+                        self.contours_mvcs[(y, x)] = point_mvc
                         break  # there can be only one contour that contains (x, y)
         return
 
 
 if __name__ == '__main__':
-    depth_map = np.load('depth_front.npy')
-    skinning = np.load('skinning_map_image.npy')
-    hole_filler = HoleFilling(depth_map=depth_map)
-    contours_boundery_values = hole_filler.contours_boundery_values(map=depth_map)
-    depth_map_filled = hole_filler.interpolation(depth_map, contours_boundery_values)
-    dmin = np.min(np.where(depth_map_filled == np.min(depth_map_filled), float('inf'), depth_map_filled))
-    dmax = np.max(np.where(depth_map_filled == np.max(depth_map_filled), float('-inf'), depth_map_filled))
-    cv2.imshow('depth_front', (depth_map_filled - dmin) / (dmax-dmin))
+    depth_front = np.load('depth_front.npy')
+    depth_back = np.load('depth_back.npy')
+    skinning_image = np.load('skinning_map_image.npy')
+    hole_filler = HoleFilling(depth_map=depth_front)
+    contours_boundery_values_depth_front = hole_filler.contours_boundery_values(map=depth_front)
+    depth_front_filled = hole_filler.interpolation(depth_front, contours_boundery_values_depth_front)
+
+    contours_boundery_values_depth_back = hole_filler.contours_boundery_values(map=depth_back)
+    depth_back_filled = hole_filler.interpolation(depth_back, contours_boundery_values_depth_back)
+
+    contours_boundery_values_skinning_image = hole_filler.contours_boundery_values(map=skinning_image)
+    skinning_image_filled = hole_filler.interpolation(skinning_image, contours_boundery_values_skinning_image)
+
+    np.save('depth_front_filled.npy', depth_front_filled)
+    np.save('depth_back_filled.npy', depth_back_filled)
+    np.save('skinning_image_filled.npy', skinning_image_filled)
+
+    dmin = np.min(np.where(depth_front_filled == np.min(depth_front_filled), float('inf'), depth_front_filled))
+    dmax = np.max(np.where(depth_front_filled == np.max(depth_front_filled), float('-inf'), depth_front_filled))
+    cv2.imshow('depth_front', 1. - (depth_front_filled - dmin) / (dmax-dmin))
+
+    dmin = np.min(np.where(depth_back_filled == np.min(depth_back_filled), float('inf'), depth_back_filled))
+    dmax = np.max(np.where(depth_back_filled == np.max(depth_back_filled), float('-inf'), depth_back_filled))
+    cv2.imshow('depth_back', 1. - (depth_back_filled - dmin) / (dmax-dmin))
+
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-
-    
-
-        
-            
-        
-    
+    for i in range(22):
+        cv2.imshow('skinning_map', skinning_image_filled[:, :, i])
+        if cv2.waitKey(200) != -1:
+            break
+    cv2.destroyAllWindows()
