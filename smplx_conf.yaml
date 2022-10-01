@@ -80,7 +80,7 @@ init_joints_idxs:
 - 2
 - 5
 interactive: false
-interpenetration: true
+interpenetration: false
 jaw_pose_prior_weights:
 - 4.04e03,4.04e04,4.04e04
 - 4.04e03,4.04e04,4.04e04

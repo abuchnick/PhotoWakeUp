@@ -1,4 +1,3 @@
-from re import A
 import torch
 import pickle as pkl
 import cv2
