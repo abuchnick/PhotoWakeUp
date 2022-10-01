@@ -163,8 +163,8 @@ if __name__ == "__main__":
         camera_rotation=result['camera']['rotation']
     )
 
-    depth_front = np.load(r'./depth_front.npy')
-    depth_back = np.load(r'./depth_back.npy')
+    depth_front = np.load(r'./depth_front_filled.npy')
+    depth_back = np.load(r'./depth_back_filled.npy')
     mask = cv.imread(r'./refined_mask.png', cv.IMREAD_GRAYSCALE)
     mask[depth_front == np.inf] = 0
     mask[depth_front <= 0] = 0

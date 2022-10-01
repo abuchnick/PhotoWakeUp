@@ -19,16 +19,19 @@ if __name__ == '__main__':
     )
     print(f"{np.all(np.abs(result['mesh']['skinning_map'].sum(axis=-1) - 1.0) < 0.01)}")
 
-    skinning_map_render = renderer.render_skinning_map(skinning_map=result['mesh']['skinning_map'])
+    # skinning_map_render = renderer.render_skinning_map(skinning_map=result['mesh']['skinning_map'])
 
-    smpl_mask = renderer.render_solid()
-    print(np.all((np.abs(skinning_map_render.sum(axis=-1) - 1.0) < 0.01) | np.any(smpl_mask < 125, axis=2)))
+    # smpl_mask = renderer.render_solid()
+    # print(np.all((np.abs(skinning_map_render.sum(axis=-1) - 1.0) < 0.01) | np.any(smpl_mask < 125, axis=2)))
 
-    warp_func = np.load('warp.npy')
-    warp = Warp(warp_func)
-    skinning_map_warped = warp(skinning_map_render)
-    warped_mask = warp(smpl_mask)
-    print(np.all((np.abs(skinning_map_warped.sum(axis=-1) - 1.0) < 0.01) | np.any(warped_mask < 125, axis=2)))
+    # warp_func = np.load('warp.npy')
+    # warp = Warp(warp_func)
+    # skinning_map_warped = warp(skinning_map_render)
+    # warped_mask = warp(smpl_mask)
+    # print(np.all((np.abs(skinning_map_warped.sum(axis=-1) - 1.0) < 0.01) | np.any(warped_mask < 125, axis=2)))
+
+    skinning_map_warped = np.load('skinning_image_filled.npy')
+
     # for i in range(22):
     #     cv2.imshow('skinning_map', skinning_map_render[:, :, i])
     #     if cv2.waitKey(200) != -1:
