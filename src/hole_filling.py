@@ -28,7 +28,7 @@ class HoleFilling:
             map[y,x] = np.sum(np.multiply(boundery,mvc),axis=0)
         return map
 
-    def classify_points(self, depth_map) -> List[List[List[int]]]:
+    def classify_points(self, depth_map):
         holes = (depth_map != np.inf).astype(np.uint8)
         contours, hierarchy = cv2.findContours(holes, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         i = hierarchy[0][0][2]
@@ -48,32 +48,25 @@ class HoleFilling:
 
 
 if __name__ == '__main__':
-    depth_front = np.load('depth_front.npy')
-    depth_back = np.load('depth_back.npy')
-    skinning_image = np.load('skinning_map_image.npy')
+    depth_front = np.load('projected_back_depth.npy')
+    #skinning_image = np.load('skinning_map_image.npy')
     hole_filler = HoleFilling(depth_map=depth_front)
-
+    
     depth_front_filled = hole_filler(map=depth_front)
-    depth_back_filled = hole_filler(map=depth_back)
-    skinning_image_filled = hole_filler(map=skinning_image)
 
-    np.save('depth_front_filled.npy', depth_front_filled)
-    np.save('depth_back_filled.npy', depth_back_filled)
-    np.save('skinning_image_filled.npy', skinning_image_filled)
+
+    #skinning_image_filled = hole_filler(map=skinning_image)
+
 
     dmin = np.min(np.where(depth_front_filled == np.min(depth_front_filled), float('inf'), depth_front_filled))
     dmax = np.max(np.where(depth_front_filled == np.max(depth_front_filled), float('-inf'), depth_front_filled))
     cv2.imshow('depth_front', 1. - (depth_front_filled - dmin) / (dmax-dmin))
 
-    dmin = np.min(np.where(depth_back_filled == np.min(depth_back_filled), float('inf'), depth_back_filled))
-    dmax = np.max(np.where(depth_back_filled == np.max(depth_back_filled), float('-inf'), depth_back_filled))
-    cv2.imshow('depth_back', 1. - (depth_back_filled - dmin) / (dmax-dmin))
-
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-    for i in range(22):
-        cv2.imshow('skinning_map', skinning_image_filled[:, :, i])
-        if cv2.waitKey(200) != -1:
-            break
-    cv2.destroyAllWindows()
+    # for i in range(22):
+    #     cv2.imshow('skinning_map', skinning_image_filled[:, :, i])
+    #     if cv2.waitKey(200) != -1:
+    #         break
+    # cv2.destroyAllWindows()
