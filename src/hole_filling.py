@@ -52,11 +52,9 @@ if __name__ == '__main__':
     depth_back = np.load('depth_back.npy')
     skinning_image = np.load('skinning_map_image.npy')
     hole_filler = HoleFilling(depth_map=depth_front)
-    contours_boundery_values_depth_front = hole_filler.contours_boundery_values(map=depth_front)
-    depth_front_filled = hole_filler.interpolation(depth_front, contours_boundery_values_depth_front)
 
+    depth_front_filled = hole_filler(map=depth_front)
     depth_back_filled = hole_filler(map=depth_back)
-
     skinning_image_filled = hole_filler(map=skinning_image)
 
     np.save('depth_front_filled.npy', depth_front_filled)
