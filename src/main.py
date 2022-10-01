@@ -19,6 +19,7 @@ from animation_viewer import AnimationWindow
 from camera import Camera
 import moderngl_window as mglw
 from hole_filling import HoleFilling
+from animation import Animation
 
 
 PROJECT_ROOT = os.path.abspath(join(__file__, "..", ".."))
@@ -36,6 +37,14 @@ images_temp_dir_path = join(PROJECT_ROOT, "data",
 input_image_path = join(images_dir_path,
                         configuration["inputFileName"])
 input_image = cv2.imread(input_image_path)
+
+img_name = os.path.splitext(configuration["inputFileName"])[0]
+
+SAVED_DATA_PATH = os.path.abspath(join(__file__, "..", "..", "temp", img_name))
+try:
+    os.mkdir(SAVED_DATA_PATH)
+except FileExistsError:
+    pass
 
 # Segmentation
 mask = Mask(img_path=input_image_path,  # TODO fix pass here the input image instead of the path - happens because of inner img_to_tensor
@@ -55,14 +64,14 @@ pose_estimator(img=input_image,
 
 # SMPLX Model Creation
 smplifyx_object = SmplifyX()
-img_name = os.path.splitext(configuration["inputFileName"])[0]
-
-SAVED_DATA_PATH = os.path.abspath(join(__file__, "..", "..", "temp", img_name))
-os.mkdir(SAVED_DATA_PATH)
 
 result = smplifyx_object()[img_name][0]
 with open(join(SAVED_DATA_PATH, 'result.pkl'), 'wb') as file:
     pickle.dump(result, file)
+
+# with open(join(SAVED_DATA_PATH, 'result.pkl'), 'rb') as file:
+    # result = pickle.load(file)
+
 
 # SMPLX Model: Normals, Depth and Skinning Maps rendering, and Segmentation Mask and Projection Matrix retreival
 img_size = input_image.shape[0:2]
@@ -118,7 +127,7 @@ projected_depth_back = warp(map_img=smpl_depth_back)
 projected_skinning_map = warp(map_img=smpl_skinning_image)
 
 # SMPLX Model: Hole Filling
-hole_filler = HoleFilling(depth_map=smpl_depth_front)
+hole_filler = HoleFilling(depth_map=projected_depth_front)
 
 projected_depth_front_filled = hole_filler(map=projected_depth_front)
 projected_depth_back_filled = hole_filler(map=projected_depth_back)
@@ -127,38 +136,12 @@ projected_skinning_map_filled = hole_filler(map=projected_skinning_map)
 dmin = np.min(np.where(projected_depth_front_filled == np.min(projected_depth_front_filled), float('inf'), projected_depth_front_filled))
 dmax = np.max(np.where(projected_depth_front_filled == np.max(projected_depth_front_filled), float('-inf'), projected_depth_front_filled))
 cv2.imshow('depth', 1. - (projected_depth_front_filled - dmin) / (dmax - dmin))
-cv2.waitKey()
+cv2.waitKey(2000)
 cv2.destroyAllWindows()
 
 np.save(join(SAVED_DATA_PATH, 'projected_depth_front_filled.npy'), projected_depth_front_filled)
 np.save(join(SAVED_DATA_PATH, 'projected_depth_back_filled.npy'), projected_depth_back_filled)
 np.save(join(SAVED_DATA_PATH, 'projected_skinning_map_filled.npy'), projected_skinning_map_filled)
-
-# Skinning map fixes
-problematic_pixels = ~((np.abs(projected_skinning_map_filled.sum(axis=-1) - 1.0) < 0.01) | np.any(smpl_mask < 125, axis=2))
-for y, x in zip(*np.nonzero(problematic_pixels)):
-    value = np.zeros(projected_skinning_map_filled.shape[-1])
-    for i in range(y-1, y+2):
-        for j in range(x-1, x+2):
-            value += projected_skinning_map_filled[i, j]
-    value = value / np.sum(value)
-    projected_skinning_map_filled[y, x] = value
-    
-uv = renderer.get_uv_coords()
-scaled_uv = (uv * np.array([[projected_skinning_map_filled.shape[1], projected_skinning_map_filled.shape[0]]])).astype(np.int32)
-scaled_uv[:, 1] = projected_skinning_map_filled.shape[0] - scaled_uv[:, 1]  # reverse y axis
-skinning_weights = projected_skinning_map_filled[scaled_uv[:, 1], scaled_uv[:, 0], :]
-problematic_vertices = ~(np.abs(skinning_weights.sum(axis=-1) - 1.0) < 0.01)
-for v in np.nonzero(problematic_vertices)[0]:
-    x, y = scaled_uv[v]
-    value = np.zeros(skinning_weights.shape[-1])
-    for i in range(x-1, x+2):
-        for j in range(y-1, y+2):
-            value += projected_skinning_map[i, j]
-    value = value / np.sum(value)
-    skinning_weights[v] = value
-
-np.save(join(SAVED_DATA_PATH, 'skinning_weights.npy'), skinning_weights)
 
 # projected_normals_front = warp(map_img=smpl_normals_front)
 # projected_normals_back = warp(map_img=smpl_normals_back)
@@ -215,3 +198,44 @@ MeshCreator = Reconstruct(segmentation, front_depth_integration, back_depth_inte
 mesh = MeshCreator.create_mesh()
 np.savez(join(SAVED_DATA_PATH, 'mesh_data.npz'), **mesh)
 
+# Skinning map fixes
+problematic_pixels = ~((np.abs(projected_skinning_map_filled.sum(axis=-1) - 1.0) < 0.01) | np.any(smpl_mask < 125, axis=2))
+for y, x in zip(*np.nonzero(problematic_pixels)):
+    value = np.zeros(projected_skinning_map_filled.shape[-1])
+    for i in range(y-1, y+2):
+        for j in range(x-1, x+2):
+            value += projected_skinning_map_filled[i, j]
+    value = value / np.sum(value)
+    projected_skinning_map_filled[y, x] = value
+
+del(renderer)
+renderer = Renderer(
+    vertices=mesh['transformed_vertices'],
+    faces=mesh['faces'],
+    img=input_image,
+    camera_translation=result['camera']['translation'],
+    camera_rotation=result['camera']['rotation']
+)
+
+uv = renderer.get_uv_coords()
+scaled_uv = (uv * np.array([[projected_skinning_map_filled.shape[1], projected_skinning_map_filled.shape[0]]])).astype(np.int32)
+scaled_uv[:, 1] = projected_skinning_map_filled.shape[0] - scaled_uv[:, 1]  # reverse y axis
+skinning_weights = projected_skinning_map_filled[scaled_uv[:, 1], scaled_uv[:, 0], :]
+problematic_vertices = ~(np.abs(skinning_weights.sum(axis=-1) - 1.0) < 0.01)
+for v in np.nonzero(problematic_vertices)[0]:
+    x, y = scaled_uv[v]
+    value = np.zeros(skinning_weights.shape[-1])
+    for i in range(y-1, y+2):
+        for j in range(x-1, x+2):
+            value += projected_skinning_map[i, j]
+    value = value / np.sum(value)
+    skinning_weights[v] = value
+
+np.save(join(SAVED_DATA_PATH, 'skinning_weights.npy'), skinning_weights)
+
+animation = Animation(mesh_data=mesh, img=input_image, smplx_result=result, skinning_weights=skinning_weights)
+video_writer = cv2.VideoWriter(join(SAVED_DATA_PATH, 'video.mp4'), cv2.VideoWriter_fourcc(*'mp4v'), 120, tuple(reversed(input_image.shape[:2])))
+poses = torch.tensor(np.load('skip_to_walk_full_pose.npy'), dtype=animation.model.dtype)
+poses[:, 0:3] = 0.0
+animation(poses, video_writer)
+video_writer.release()

@@ -243,7 +243,7 @@ class Renderer:
             index_element_size=4
         )
 
-        texture = self.ctx.texture(self.img_shape, components=3, data=np.flip(img, axis=[0, 2]).tobytes())
+        texture = self.ctx.texture(tuple(reversed(self.img_shape)), components=3, data=np.flip(img, axis=[0, 2]).tobytes())
         texture.use(0)
         program['Texture'] = 0
 

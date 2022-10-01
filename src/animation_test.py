@@ -62,16 +62,16 @@ def reduce_weights_dimensions(weights, parents, stop_index=22):
     return new_weights
 
 
-with open('result.pkl', 'rb') as file:
+with open('temp/trump/result.pkl', 'rb') as file:
     result = pkl.load(file)
 
 model = result['model']
-mesh = np.load('mesh_data.npz')
+mesh = np.load('temp/trump/mesh_data.npz')
 
 renderer = Renderer(
     vertices=mesh['transformed_vertices'],  # result['mesh']['vertices'],
     faces=mesh['faces'],  # result['mesh']['faces'],
-    img=cv2.imread(r'./data/images_temp/goku.jpg'),
+    img=cv2.imread(r'./data/images/trump.jpg'),
     camera_translation=result['camera']['translation'],
     camera_rotation=result['camera']['rotation']
 )
@@ -121,7 +121,7 @@ posed_joints = torch.tensor(result['mesh']['joints_posed'][:22, :])
 view_joints(renderer, posed_joints)
 joints, rel_transforms = batch_rigid_transform(inverse_pose_rot_mats, posed_joints.reshape(1, -1, 3), model.parents[:22].reshape(-1), dtype=posed_joints.dtype)
 view_joints(renderer, joints)
-weights = torch.tensor(np.load('skinning_weights.npy'), dtype=posed_joints.dtype).unsqueeze(dim=0)
+weights = torch.tensor(np.load('temp/trump/skinning_weights.npy'), dtype=posed_joints.dtype).unsqueeze(dim=0)
 weights = weights / weights.sum(dim=-1, keepdim=True)
 print(f"{torch.all(torch.abs(weights.sum(dim=-1) - 1.0) < 0.01)}")
 weights = reduce_weights_dimensions(weights, model.parents, stop_index=num_joints)
