@@ -12,22 +12,21 @@ class HoleFilling:
 
         self.classify_points(depth_map)
 
-    def interpolation(self, map_array, contour_boundery_values):
-        for y, x, contour_num in self.inner_points:
-            # here we multiply Bx2 with Bx1, where B is the number of boundary points on current contour
-            # so we get Bx2, and then after summing on axis 0
-            boundery = np.array(contour_boundery_values[contour_num])
-            if boundery.ndim == 1:
-                boundery = boundery.reshape(-1, 1)
-            mvc = np.array(self.contours_mvcs[(y, x)]).reshape(-1, 1)
-            map_array[y, x] = np.sum(np.multiply(boundery, mvc), axis=0)
-        return map_array
-
-    def contours_boundery_values(self, map):
+    def __call__(self, map):
+        
         inner_contours_map = []
         for inner_contour in self.inner_contours:
-            inner_contours_map.append([map[point[1], point[0]] for point in inner_contour])
-        return inner_contours_map
+            inner_contours_map.append([map[point[1],point[0]] for point in inner_contour])
+        
+        for y, x, contour_num in self.inner_points:
+              # here we multiply Bx2 with Bx1, where B is the number of boundary points on current contour
+              # so we get Bx2, and then after summing on axis 0 
+            boundery = np.array(inner_contours_map[contour_num])
+            if boundery.ndim == 1:
+                boundery = boundery.reshape(-1,1)
+            mvc = np.array(self.contours_mvcs[(y,x)]).reshape(-1,1)
+            map[y,x] = np.sum(np.multiply(boundery,mvc),axis=0)
+        return map
 
     def classify_points(self, depth_map) -> List[List[List[int]]]:
         holes = (depth_map != np.inf).astype(np.uint8)
@@ -46,7 +45,6 @@ class HoleFilling:
                         point_mvc = mean_value_coordinates(org_contours_pixels=np.array(inner_contour), inner_pixel=np.array([x, y]))
                         self.contours_mvcs[(y, x)] = point_mvc
                         break  # there can be only one contour that contains (x, y)
-        return
 
 
 if __name__ == '__main__':
@@ -54,14 +52,10 @@ if __name__ == '__main__':
     depth_back = np.load('depth_back.npy')
     skinning_image = np.load('skinning_map_image.npy')
     hole_filler = HoleFilling(depth_map=depth_front)
-    contours_boundery_values_depth_front = hole_filler.contours_boundery_values(map=depth_front)
-    depth_front_filled = hole_filler.interpolation(depth_front, contours_boundery_values_depth_front)
 
-    contours_boundery_values_depth_back = hole_filler.contours_boundery_values(map=depth_back)
-    depth_back_filled = hole_filler.interpolation(depth_back, contours_boundery_values_depth_back)
-
-    contours_boundery_values_skinning_image = hole_filler.contours_boundery_values(map=skinning_image)
-    skinning_image_filled = hole_filler.interpolation(skinning_image, contours_boundery_values_skinning_image)
+    depth_front_filled = hole_filler(map=depth_front)
+    depth_back_filled = hole_filler(map=depth_back)
+    skinning_image_filled = hole_filler(map=skinning_image)
 
     np.save('depth_front_filled.npy', depth_front_filled)
     np.save('depth_back_filled.npy', depth_back_filled)
