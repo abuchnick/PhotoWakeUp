@@ -99,7 +99,8 @@ def mean_value_coordinates(org_contours_pixels, inner_pixel):
     coord_diffs_shifted = np.roll(coord_diffs, shift=(1, -1), axis=(1, 0))  # this moves cyclically the two cols of coord_diffs upside-down and switches between the order of two cols
     norm = np.linalg.norm(coord_diffs, ord=2, axis=1)
     if np.any(norm == 0.0):
-        return np.where(norm == 0, 1, 0)  # there can be only one input in norm that equals 0
+        mvc = np.where(norm == 0, 1.0, 0.0)
+        return mvc / mvc.sum()
     shifted_norm = np.roll(norm, shift=-1, axis=0)
     coord_diffs_shifted[:, 1] *= -1
     sin_a = (coord_diffs * coord_diffs_shifted).sum(axis=1) / (norm * shifted_norm)
@@ -120,7 +121,7 @@ def inverse_warp(refined_mask_img, smpl_mask_img):
         mvc = mean_value_coordinates(org_contours, inner_pixel)  # , org_contours_pixels_shifted)  # shape == (m, )
         transformed_pixels = np.expand_dims(mvc, axis=1) * np.take(a=smpl_contours, indices=correspondence, axis=0)  # shape == (m, 2)
         mapped_pixel = transformed_pixels.sum(axis=0)  # shape == (2, )
-        result.append([inner_pixel, mapped_pixel.astype(int)])
+        result.append([inner_pixel, mapped_pixel.astype(np.int32)])
     return result
 
 
